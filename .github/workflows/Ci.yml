@@ -3,7 +3,7 @@ name: Build and Publish Docker Image
 on:
   push:
     branches:
-      - main  # Change this to your main branch name
+      - release  # Change this to your main branch name
 jobs:
   build:
     runs-on: ubuntu-latest
