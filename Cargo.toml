@@ -1,0 +1,15 @@
+[package]
+name = "easy-proxy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = "1.4.0"
+futures-util = { version = "0.3", default-features = false }
+http-body-util = "0.1.0-rc.3"
+hyper = { git = "https://github.com/hyperium/hyper", default-features = false, features = ["full"] }
+pin-project-lite = "0.2.10"
+tokio = { version = "1", features = ["full"] }
+http = "0.2"
