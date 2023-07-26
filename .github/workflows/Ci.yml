@@ -1,0 +1,28 @@
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main  # Change this to your main branch name
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build Rust project
+        run: cargo build --release
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/aitthi/easy-proxy:version-${{ github.sha }} .
+      - name: Log in to Docker Hub (or any other container registry)
+        run: docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image to registry
+        run: docker push ghcr.io/aitthi/easy-proxy:version-${{ github.sha }}
