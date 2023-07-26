@@ -26,3 +26,7 @@ jobs:
         run: docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image to registry
         run: docker push ghcr.io/aitthi/easy-proxy:version-${{ github.sha }}
+      - name: Version to latest tag
+        run: docker tag ghcr.io/aitthi/easy-proxy:version-${{ github.sha }} ghcr.io/aitthi/easy-proxy:latest
+      - name: Push latest tag to registry
+        run: docker push ghcr.io/aitthi/easy-proxy:latest
