@@ -19,14 +19,14 @@ struct Config {
     authen: Option<String>,
 
     #[argh(option)]
-    /// host server default 127.0.0.1:8100
+    /// host server default 0.0.0.10:8100
     host: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = argh::from_env();
-    let host = config.host.unwrap_or("127.0.0.1:8100".to_string());
+    let host = config.host.unwrap_or("0.0.0.10:8100".to_string());
     let addr = host.parse::<SocketAddr>()?;
     let authen = Arc::new(config.authen.unwrap_or("".to_string()));
     let listener = TcpListener::bind(addr).await?;
