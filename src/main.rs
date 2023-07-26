@@ -19,14 +19,14 @@ struct Config {
     authen: Option<String>,
 
     #[argh(option)]
-    /// host server default 0.0.0.10:8100
+    /// host server default 0.0.0.0:8100
     host: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = argh::from_env();
-    let host = config.host.unwrap_or("0.0.0.10:8100".to_string());
+    let host = config.host.unwrap_or("0.0.0.0:8100".to_string());
     let addr = host.parse::<SocketAddr>()?;
     let authen = Arc::new(config.authen.unwrap_or("".to_string()));
     let listener = TcpListener::bind(addr).await?;
@@ -55,20 +55,14 @@ async fn proxy(
     authen: Arc<String>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     let conf_authen: String = authen.to_string();
-    let proxy_ip: String = req
-        .headers()
-        .get("x-proxy-ip")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-    let proxy_port: String = req
-        .headers()
-        .get("x-proxy-port")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let proxy_ip: String = match req.headers().get("x-proxy-ip") {
+        Some(ip) => ip.to_str().unwrap().to_string(),
+        None => return Ok(service_unavailable()),
+    };
+    let proxy_port: String = match req.headers().get("x-proxy-port") {
+        Some(port) => port.to_str().unwrap().to_string(),
+        None => return Ok(service_unavailable()),
+    };
     if let Some(authen) = req.headers().get("x-proxy-authen") {
         if authen.to_str().unwrap().to_string() != conf_authen {
             return Ok(forbidden());
@@ -113,7 +107,9 @@ async fn proxy(
 fn forbidden() -> Response<BoxBody<Bytes, hyper::Error>> {
     let mut resp = Response::builder();
     resp = resp.status(403);
-    let body = resp.body(empty()).unwrap();
+    let msg = "Forbidden".to_string();
+    let body = BoxBody::new::<_>(msg).map_err(|never| match never {}).boxed();
+    let body = resp.body(body).unwrap();
     body
 }
 
@@ -121,6 +117,15 @@ fn empty() -> BoxBody<Bytes, hyper::Error> {
     Empty::<Bytes>::new()
         .map_err(|never| match never {})
         .boxed()
+}
+
+fn service_unavailable() -> Response<BoxBody<Bytes, hyper::Error>> {
+    let mut resp = Response::builder();
+    resp = resp.status(503);
+    let msg = "Service Unavailable".to_string();
+    let body = BoxBody::new::<_>(msg).map_err(|never| match never {}).boxed();
+    let body = resp.body(body).unwrap();
+    body
 }
 
 async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
