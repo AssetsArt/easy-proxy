@@ -20,10 +20,7 @@ jobs:
         run: cargo build --release
 
       - name: Build Docker image
-        run: |
-          docker build -t ghcr.io/aitthi/easy-proxy:version-${{ github.sha }} .
-      - name: Log in to Docker Hub (or any other container registry)
-        run: docker login ghcr.io -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+        run: docker build -t ghcr.io/aitthi/easy-proxy:version-${{ github.sha }} .
       - name: Push Docker image to registry
         run: docker push ghcr.io/aitthi/easy-proxy:version-${{ github.sha }}
       - name: Version to latest tag
