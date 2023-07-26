@@ -13,3 +13,4 @@ hyper = { git = "https://github.com/hyperium/hyper", default-features = false, f
 pin-project-lite = "0.2.10"
 tokio = { version = "1", features = ["full"] }
 http = "0.2"
+argh = "0.1.10"
