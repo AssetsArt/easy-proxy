@@ -9,7 +9,7 @@ edition = "2021"
 bytes = "1.4.0"
 futures-util = { version = "0.3", default-features = false }
 http-body-util = "0.1.0-rc.3"
-hyper = { git = "https://github.com/hyperium/hyper", default-features = false, features = ["full"] }
+hyper = { git = "https://github.com/hyperium/hyper", rve="53b8372", default-features = false, features = ["full"] }
 pin-project-lite = "0.2.10"
 tokio = { version = "1", features = ["full"] }
 http = "0.2"
