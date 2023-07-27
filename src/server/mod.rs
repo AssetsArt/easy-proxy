@@ -11,7 +11,7 @@ pub async fn start() {
     let addr = config.host.parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(addr).await.unwrap();
 
-    println!("Listening on http://{}", addr);
+    println!("Proxy server listening on {}", addr);
 
     loop {
         let stream = match listener.accept().await {

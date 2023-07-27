@@ -10,4 +10,9 @@ pub struct CliConfig {
     #[argh(option)]
     /// host server default 0.0.0.0:8100
     pub host: Option<String>,
+
+    #[argh(option)]
+    /// web api and ui server default 0.0.0.0:8080
+    pub api_host: Option<String>,
+    
 }
