@@ -1,0 +1,37 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: easy-proxy-deployment
+  namespace: local
+  labels:
+    app: easy-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: easy-proxy
+  template:
+    metadata:
+      labels:
+        app: easy-proxy
+    spec:
+      containers:
+        args: ['--authen', "my_authen_key", "--host", "0.0.0.0:8100"]
+        command: ["./easy-proxy"]
+        name: easy-proxy-container
+        image: "ghcr.io/aitthi/easy-proxy:version-60aa488581f3004a21f86b9a59125c76bbbf61c4"
+        ports:
+          - name: app-port
+            containerPort: 8100
+            protocol: TCP
+        imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60
+      dnsPolicy: ClusterFirst
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 33%
+      maxSurge: 80%
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 600
