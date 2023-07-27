@@ -31,6 +31,7 @@ COPY --from=builder /app/target/release/easy-proxy ./
 # expose default port
 EXPOSE 8100
 
-# run app in shell
-ENTRYPOINT "./easy-proxy"
-CMD ["--authen", "${E_AUTH}"]
+# default just run app
+ENTRYPOINT ["./easy-proxy"]
+# fallback
+CMD ["./easy-proxy", "--authen", "${E_AUTH}"]
