@@ -18,7 +18,7 @@ ENV E_AUTH="SomeYourSecret"
 
 # Update OS
 RUN	apt-get update && apt-get -y full-upgrade \
-    && apt-get -y install locales tzdata net-tools ca-certificates \
+    && apt-get -y install dumb-init locales tzdata net-tools ca-certificates \
     && apt-get clean
 
 # Change locale
@@ -31,7 +31,6 @@ COPY --from=builder /app/target/release/easy-proxy ./
 # expose default port
 EXPOSE 8100
 
-# default just run app
-ENTRYPOINT ["./easy-proxy"]
-# fallback
+# default run entrypoint
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["./easy-proxy", "--authen", "${E_AUTH}"]
