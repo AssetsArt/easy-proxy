@@ -1,3 +1,6 @@
+// internal 
+pub mod model;
+
 use surrealdb::{kvs::Datastore, dbs::Session};
 use tokio::sync::OnceCell;
 
