@@ -1,5 +1,20 @@
-# easy-proxy
+# Easy Proxy
 
+A simple proxy server.
+
+## Features should be supported
+- [] Load Balancing
+- [] Duplicate forwarding
+- [] SSL Termination
+- [] Caching
+- [] Content Compression
+- [] Filtering
+- [] Health Checking
+- [] Logging and Monitoring
+- Protocol Support
+  - [x] HTTP
+  - [] HTTPS
+- [] Web UI
 
 ## Test
 ```sh
