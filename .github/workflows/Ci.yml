@@ -5,20 +5,11 @@ on:
     branches:
       - release  # Change this to your main branch name
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Build Rust project
-        run: cargo build --release
-
       - name: Build Docker image
         run: |
           docker build -t ghcr.io/aitthi/easy-proxy:version-${{ github.sha }} .
