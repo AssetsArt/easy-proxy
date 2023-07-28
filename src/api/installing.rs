@@ -1,31 +1,49 @@
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-    response::Response,
+use crate::{
+    api::utils::reponse_json,
+    db::{get_database, model, Record},
 };
+use axum::{body::Body, http::StatusCode, response::Response, Json};
+use serde::Deserialize;
+use serde_json::{json, Value};
 
-use crate::db::{get_database, model, Record};
+#[derive(Deserialize, Debug)]
+pub struct InstallingBody {
+    pub username: String,
+    pub password: String,
+}
 
-pub async fn installing(_req: Request<Body>) -> Response<Body> {
+pub async fn installing(mut input: Json<Value>) -> Response<Body> {
     let dbs = get_database().await;
     let db = &dbs.disk;
+    let _input: InstallingBody = match serde_json::from_value(input.take()) {
+        Ok(r) => r,
+        Err(err) => {
+            return reponse_json(
+                json!({
+                    "status": "error",
+                    "message": "Required fields are missing should be username and password",
+                    "error": err.to_string()
+                }),
+                StatusCode::BAD_REQUEST,
+            )
+        }
+    };
+    // println!("{:?}", input);
     // check if the database is already installed
     let install: Option<model::Installing> = match db.select(("installing", "installing")).await {
         Ok(r) => r,
         Err(_) => None,
     };
-    // dbg!(install);
-    let mut res = Response::builder();
-    res = res.header("Content-Type", "application/json");
-    let data;
+
     match install {
         Some(_) => {
-            res = res.status(StatusCode::BAD_REQUEST);
-            data = serde_json::json!({
-                "status": "error",
-                "message": "Database already installed"
-            });
-            return res.body(Body::from(data.to_string())).unwrap();
+            return reponse_json(
+                json!({
+                    "status": "error",
+                    "message": "Database already installed"
+                }),
+                StatusCode::BAD_REQUEST,
+            )
         }
         None => {}
     }
@@ -41,19 +59,22 @@ pub async fn installing(_req: Request<Body>) -> Response<Body> {
     };
 
     if let Some(record) = record {
-        res = res.status(StatusCode::OK);
-        data = serde_json::json!({
-            "status": "success",
-            "message": "Database installed",
-            "data": record
-        });
-        return res.body(Body::from(data.to_string())).unwrap();
+        // input
+        return reponse_json(
+            json!({
+                "status": "success",
+                "message": "Database installed",
+                "data": record
+            }),
+            StatusCode::OK,
+        );
     }
 
-    res = res.status(StatusCode::BAD_REQUEST);
-    data = serde_json::json!({
-        "status": "error",
-        "message": "Could not create installing table"
-    });
-    return res.body(Body::from(data.to_string())).unwrap();
+    return reponse_json(
+        json!({
+            "status": "error",
+            "message": "Could not create installing table"
+        }),
+        StatusCode::BAD_REQUEST,
+    );
 }

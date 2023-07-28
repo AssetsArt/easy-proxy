@@ -1,5 +1,6 @@
 // mod
 pub mod installing;
+pub mod utils;
 
 // external
 use axum::{
