@@ -1,5 +1,5 @@
 // mod
-pub mod installing;
+pub mod instruction;
 pub mod utils;
 
 // external
@@ -12,14 +12,14 @@ use axum::{
 };
 
 // internal
-use crate::{api::installing::installing, config};
+use crate::config;
 
 pub async fn start() {
     let addr = config::load_global_config().api_host.clone();
 
     let mut router = Router::new();
     router = router.route("/", any(home));
-    router = router.nest("/api", Router::new().route("/install", post(installing)));
+    router = router.nest("/api", Router::new().route("/install", post(instruction::installing)));
 
     println!("API server listening on {}", addr);
     axum::Server::bind(&addr.parse().unwrap())
