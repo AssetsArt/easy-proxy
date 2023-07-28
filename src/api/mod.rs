@@ -7,7 +7,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     response::Response,
-    routing::{any, post},
+    routing::{any, post, get},
     Router,
 };
 
@@ -19,7 +19,10 @@ pub async fn start() {
 
     let mut router = Router::new();
     router = router.route("/", any(home));
-    router = router.nest("/api", Router::new().route("/install", post(instruction::installing)));
+    router = router.nest("/api", Router::new()
+        .route("/install", post(instruction::installing::install))
+        .route("/is_install", get(instruction::installing::is_install))
+    );
 
     println!("API server listening on {}", addr);
     axum::Server::bind(&addr.parse().unwrap())

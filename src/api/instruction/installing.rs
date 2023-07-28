@@ -12,10 +12,10 @@ pub struct InstallingBody {
     pub password: String,
 }
 
-pub async fn installing(mut input: Json<Value>) -> Response<Body> {
+pub async fn install(mut input: Json<Value>) -> Response<Body> {
     let dbs = get_database().await;
     let db = &dbs.disk;
-    let _input: InstallingBody = match serde_json::from_value(input.take()) {
+    let input: InstallingBody = match serde_json::from_value(input.take()) {
         Ok(r) => r,
         Err(err) => {
             return reponse_json(
@@ -36,14 +36,16 @@ pub async fn installing(mut input: Json<Value>) -> Response<Body> {
     };
 
     match install {
-        Some(_) => {
-            return reponse_json(
-                json!({
-                    "status": "error",
-                    "message": "Database already installed"
-                }),
-                StatusCode::BAD_REQUEST,
-            )
+        Some(data) => {
+            if data.is_installed {
+                return reponse_json(
+                    json!({
+                        "status": "error",
+                        "message": "Database already installed"
+                    }),
+                    StatusCode::BAD_REQUEST,
+                );
+            }
         }
         None => {}
     }
@@ -59,7 +61,33 @@ pub async fn installing(mut input: Json<Value>) -> Response<Body> {
     };
 
     if let Some(record) = record {
-        // input
+        match db
+            .query(
+                "CREATE admin 
+            SET name = $name, 
+            username=$username, 
+            password=crypto::argon2::generate($password)
+        ",
+            )
+            .bind(("name", "Admin"))
+            .bind(("username", input.username.clone()))
+            .bind(("password", input.password.clone()))
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => {
+                let _ = db
+                    .delete::<Option<Record>>(("installing", "installing"))
+                    .await;
+                return reponse_json(
+                    json!({
+                        "status": "error",
+                        "message": "Could not create admin table"
+                    }),
+                    StatusCode::BAD_REQUEST,
+                );
+            }
+        };
         return reponse_json(
             json!({
                 "status": "success",
@@ -77,4 +105,26 @@ pub async fn installing(mut input: Json<Value>) -> Response<Body> {
         }),
         StatusCode::BAD_REQUEST,
     );
+}
+
+pub async fn is_install() -> Response<Body> {
+    let dbs = get_database().await;
+    let db = &dbs.disk;
+    match db
+        .select::<Option<model::Installing>>(("installing", "installing"))
+        .await
+    {
+        Ok(r) => reponse_json(
+            json!({
+                "is_installed": r.is_installed
+            }),
+            StatusCode::OK,
+        ),
+        Err(_) => reponse_json(
+            json!({
+                "is_installed": false
+            }),
+            StatusCode::OK,
+        ),
+    }
 }

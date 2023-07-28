@@ -7,7 +7,9 @@ use tokio::sync::OnceCell;
 
 pub struct Database {
   pub disk: Surreal<Db>,
-  pub memory: Surreal<Db>
+  pub memory: Surreal<Db>,
+  pub namespace: String,
+  pub database: String
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -20,19 +22,23 @@ pub struct Record {
 pub async fn get_database()  ->  &'static Database {
   static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> = once_cell::sync::Lazy::new(OnceCell::new);
   let dbs = GLOBAL_DB.get_or_init(|| async {
+    let namespace = "easy_proxy";
+    let database = "easy_proxy";
     let disk = Surreal::new::<RocksDb>("easy_proxy.db").await.unwrap();
     let memory = Surreal::new::<Mem>(()).await.unwrap();
-    match disk.use_ns("easy_proxy").use_db("easy_proxy").await {
+    match disk.use_ns(namespace.clone()).use_db(database.clone()).await {
       Ok(_) => {},
       Err(_) => {}
     }
-    match memory.use_ns("easy_proxy").use_db("easy_proxy").await {
+    match memory.use_ns(namespace.clone()).use_db(database.clone()).await {
       Ok(_) => {},
       Err(_) => {}
     }
     Database {
       disk,
-      memory
+      memory,
+      namespace: namespace.clone().to_string(),
+      database: database.clone().to_string()
     }
   }).await;
   dbs
