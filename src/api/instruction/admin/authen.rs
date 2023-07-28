@@ -32,7 +32,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
     result = result.crypto_compare("password", &input.password.clone());
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-    struct Response {
+    struct SqlResponse {
         id: sql::Thing,
         name: String,
         username: String,
@@ -40,7 +40,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
 
     let data = match result.execute().await {
         Some(mut r) => {
-            let data: Option<Response> = r.take(0).unwrap_or(None);
+            let data: Option<SqlResponse> = r.take(0).unwrap_or(None);
             data
         }
         None => {
@@ -63,6 +63,9 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
             StatusCode::UNAUTHORIZED,
         )
     }
+
+    // jwt
+    // unimplemented!("jwt");
 
     return reponse_json(
         json!({
