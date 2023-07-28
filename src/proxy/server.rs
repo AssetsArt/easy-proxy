@@ -24,7 +24,7 @@ pub async fn start() {
     // layer service
     let init_service = ServiceBuilder::new()
         .layer(AddExtensionLayer::new(ProxyServerState {
-            client: client.clone(),
+            client,
             config,
         }))
         .service_fn(request);
