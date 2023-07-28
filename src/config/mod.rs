@@ -2,6 +2,7 @@ use std::sync::Once;
 
 pub mod cli;
 
+#[derive(Clone, Debug)]
 pub struct Config {
     pub authen: Option<String>,
     pub host: String,

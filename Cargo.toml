@@ -9,7 +9,7 @@ edition = "2021"
 bytes = "1.4.0"
 futures-util = { version = "0.3", default-features = false }
 http-body-util = "0.1.0-rc.3"
-hyper = { git = "https://github.com/hyperium/hyper", rve="53b8372", default-features = false, features = ["full"] }
+hyper = { version="0.14.27",  features = ["full"] }
 pin-project-lite = "0.2.10"
 tokio = { version = "1", features = ["full"] }
 http = "0.2"
@@ -19,4 +19,6 @@ once_cell = "1.18.0"
 serde = "1.0.176"
 axum = "0.6.19"
 serde_json = "1.0.104"
+tower = { version = "0.4.13", features = ["make", "util"] }
+tower-http = { version="0.4.3", features = ["add-extension"] }
 
