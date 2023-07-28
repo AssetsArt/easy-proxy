@@ -20,6 +20,11 @@ A simple proxy server.
 - ### Database
   - [Surrealdb](https://surrealdb.com/docs/integration/sdks/rust)
 
+- ### Jwt
+  ```sh
+  ssh-keygen -t rsa -b 4096 -m PEM -E SHA512 -f cert/jwt.pem
+  ```
+
 ## Test
 ```sh
 curl --location 'https://domain.com/ipinfo' \

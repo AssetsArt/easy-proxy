@@ -3,6 +3,7 @@ pub mod api;
 pub mod config;
 pub mod proxy;
 pub mod db;
+pub mod jwt;
 
 #[tokio::main]
 async fn main() {
