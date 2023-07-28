@@ -16,6 +16,10 @@ A simple proxy server.
   - [] HTTPS
 - [] Web UI
 
+## Development
+- ### Database
+  - [Surrealdb](https://surrealdb.com/docs/integration/sdks/rust)
+
 ## Test
 ```sh
 curl --location 'https://domain.com/ipinfo' \

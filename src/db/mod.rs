@@ -16,7 +16,7 @@ pub struct Record {
     id: Thing,
 }
 
-
+// https://surrealdb.com/docs/integration/sdks/rust
 pub async fn get_database()  ->  &'static Database {
   static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> = once_cell::sync::Lazy::new(OnceCell::new);
   let dbs = GLOBAL_DB.get_or_init(|| async {
