@@ -12,7 +12,7 @@ pub struct Database {
 pub async fn get_database()  ->  &'static Database {
   static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> = once_cell::sync::Lazy::new(OnceCell::new);
   let dbs = GLOBAL_DB.get_or_init(|| async {
-    let disk = surrealdb::Surreal::new::<surrealdb::engine::local::RocksDb>("file://easy_proxy.db").await.unwrap();
+    let disk = surrealdb::Surreal::new::<surrealdb::engine::local::RocksDb>("easy_proxy.db").await.unwrap();
     let memory = surrealdb::Surreal::new::<surrealdb::engine::local::Mem>(()).await.unwrap();
     Database {
       disk,
