@@ -4,20 +4,15 @@ use axum::{
     response::Response,
 };
 
-use crate::db::{
-  get_database,
-  model,
-  Record
-};
+use crate::db::{get_database, model, Record};
 
 pub async fn installing(_req: Request<Body>) -> Response<Body> {
-    let dbs = get_database().await; 
+    let dbs = get_database().await;
     let db = &dbs.disk;
     // check if the database is already installed
-
     let install: Option<model::Installing> = match db.select(("installing", "installing")).await {
         Ok(r) => r,
-        Err(_) => None
+        Err(_) => None,
     };
     // dbg!(install);
     let mut res = Response::builder();
@@ -30,19 +25,19 @@ pub async fn installing(_req: Request<Body>) -> Response<Body> {
                 "status": "error",
                 "message": "Database already installed"
             });
-            return  res.body(Body::from(data.to_string())).unwrap();
-        },
+            return res.body(Body::from(data.to_string())).unwrap();
+        }
         None => {}
     }
 
     // create the installing table
     let record: Option<Record> = match db
-    .create(("installing", "installing"))
-    .content(model::Installing {
-        is_installed: true,
-    }).await {
+        .create(("installing", "installing"))
+        .content(model::Installing { is_installed: true })
+        .await
+    {
         Ok(r) => r,
-        Err(_) => None
+        Err(_) => None,
     };
 
     if let Some(record) = record {
@@ -52,7 +47,7 @@ pub async fn installing(_req: Request<Body>) -> Response<Body> {
             "message": "Database installed",
             "data": record
         });
-        return  res.body(Body::from(data.to_string())).unwrap();
+        return res.body(Body::from(data.to_string())).unwrap();
     }
 
     res = res.status(StatusCode::BAD_REQUEST);
@@ -60,5 +55,5 @@ pub async fn installing(_req: Request<Body>) -> Response<Body> {
         "status": "error",
         "message": "Could not create installing table"
     });
-    return  res.body(Body::from(data.to_string())).unwrap();
+    return res.body(Body::from(data.to_string())).unwrap();
 }
