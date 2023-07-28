@@ -1,5 +1,6 @@
 // internal 
 pub mod model;
+pub mod builder;
 
 use serde::{Deserialize, Serialize};
 use surrealdb::{Surreal, engine::local::{Db, RocksDb, Mem}, sql::Thing};

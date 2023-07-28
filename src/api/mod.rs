@@ -19,9 +19,14 @@ pub async fn start() {
 
     let mut router = Router::new();
     router = router.route("/", any(home));
+    
+    let admin_router = Router::new()
+    .route("/authen", post(instruction::admin::authen::authen));
+
     router = router.nest("/api", Router::new()
         .route("/install", post(instruction::installing::install))
         .route("/is_install", get(instruction::installing::is_install))
+        .nest("/admin", admin_router)
     );
 
     println!("API server listening on {}", addr);
