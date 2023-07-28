@@ -8,9 +8,10 @@ use crate::config;
 pub struct Claims {
     pub exp: usize,          // Required (validate_exp defaults to true in validation). Expiration time (as UTC timestamp)
     pub sub: String,         // Optional. Subject (whom token refers to)
+    pub role: String,        // Optional. Subject (whom token refers to)
 }
 
-pub fn sign(id: surrealdb::sql::Thing) -> (String, Claims) {
+pub fn sign(id: surrealdb::sql::Thing, role: String) -> (String, Claims) {
     let jwt_cert = config::load_global_config().jwt_cert.as_str();
     let expiration = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::hours(8))
@@ -20,6 +21,7 @@ pub fn sign(id: surrealdb::sql::Thing) -> (String, Claims) {
     let claims = Claims {
         sub: id.to_string(),
         exp: expiration as usize,
+        role,
     };
 
     // println!("claims: {:?}", claims);

@@ -36,6 +36,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         id: sql::Thing,
         name: String,
         username: String,
+        role: String,
     }
 
     let data = match result.execute().await {
@@ -65,7 +66,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
     }
 
     let data = data.unwrap();
-    let token = jwt::sign(data.clone().id);
+    let token = jwt::sign(data.clone().id, data.clone().role);
     return reponse_json(
         json!({
           "data": data,

@@ -64,25 +64,26 @@ pub async fn install(mut input: Json<Value>) -> Response<Body> {
         match db
             .query(
                 "CREATE admin 
-            SET name = $name, 
-            username=$username, 
-            password=crypto::argon2::generate($password)
-        ",
+                SET name = $name, 
+                username=$username, 
+                password=crypto::argon2::generate($password),
+                role=$role",
             )
             .bind(("name", "Admin"))
             .bind(("username", input.username.clone()))
             .bind(("password", input.password.clone()))
+            .bind(("role", "super_admin"))
             .await
         {
             Ok(r) => r,
-            Err(_) => {
+            Err(e) => {
                 let _ = db
                     .delete::<Option<Record>>(("installing", "installing"))
                     .await;
                 return reponse_json(
                     json!({
                         "status": "error",
-                        "message": "Could not create admin table"
+                        "message": e.to_string()
                     }),
                     StatusCode::BAD_REQUEST,
                 );
