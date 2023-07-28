@@ -22,7 +22,7 @@ pub fn sign(id: surrealdb::sql::Thing) -> (String, Claims) {
         exp: expiration as usize,
     };
 
-    println!("claims: {:?}", claims);
+    // println!("claims: {:?}", claims);
     let binding = std::fs::read(jwt_cert).unwrap();
     let read = binding.as_slice();
     let token = encode(&Header::new(Algorithm::RS256), &claims, &EncodingKey::from_rsa_pem(read).unwrap());
