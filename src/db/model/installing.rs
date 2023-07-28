@@ -4,8 +4,8 @@ use serde::{
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Admin {
-  pub name: String,
-  pub username: String,
-  pub password: String,
+pub struct Installing {
+  pub is_installed: bool,
 }
+
+

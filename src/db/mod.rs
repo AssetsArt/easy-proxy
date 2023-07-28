@@ -1,13 +1,21 @@
 // internal 
 pub mod model;
 
-use surrealdb::{Surreal, engine::local::{Db, RocksDb, Mem}};
+use serde::{Deserialize, Serialize};
+use surrealdb::{Surreal, engine::local::{Db, RocksDb, Mem}, sql::Thing};
 use tokio::sync::OnceCell;
 
 pub struct Database {
   pub disk: Surreal<Db>,
   pub memory: Surreal<Db>
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Record {
+    #[allow(dead_code)]
+    id: Thing,
+}
+
 
 pub async fn get_database()  ->  &'static Database {
   static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> = once_cell::sync::Lazy::new(OnceCell::new);
