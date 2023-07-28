@@ -1,4 +1,4 @@
-use crate::{api::utils::reponse_json, db::builder::SqlBuilder};
+use crate::{api::utils::reponse_json, db::builder::SqlBuilder, jwt};
 use axum::{body::Body, http::StatusCode, response::Response, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -53,7 +53,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
             )
         }
     };
-    
+
     if let None = data {
         return reponse_json(
             json!({
@@ -61,15 +61,19 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
               "message": "Username or password is incorrect"
             }),
             StatusCode::UNAUTHORIZED,
-        )
+        );
     }
 
-    // jwt
-    // unimplemented!("jwt");
-
+    let data = data.unwrap();
+    let token = jwt::sign(data.clone().id);
     return reponse_json(
         json!({
-          "data": data
+          "data": data,
+          "jwt": {
+            "type": "Bearer",
+            "token": token.0,
+            "expires_in": token.1.exp
+          }
         }),
         StatusCode::OK,
     );
