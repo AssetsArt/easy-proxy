@@ -23,8 +23,15 @@ pub struct Record {
 pub async fn get_database()  ->  &'static Database {
   static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> = once_cell::sync::Lazy::new(OnceCell::new);
   let dbs = GLOBAL_DB.get_or_init(|| async {
-    let namespace = "easy_proxy";
-    let database = "easy_proxy";
+    let mut namespace = "easy_proxy";
+    let mut database = "easy_proxy";
+
+    // cfg test overwrite the namespace and database
+    if cfg!(test) {
+      namespace = "easy_proxy_test";
+      database = "easy_proxy_test";
+    }
+    
     let disk = Surreal::new::<RocksDb>("easy_proxy.db").await.unwrap();
     let memory = Surreal::new::<Mem>(()).await.unwrap();
     match disk.use_ns(namespace.clone()).use_db(database.clone()).await {
