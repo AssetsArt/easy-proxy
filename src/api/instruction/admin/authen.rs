@@ -25,11 +25,11 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         }
     };
 
-    let mut result = SqlBuilder::new();
-    result = result.table("admin");
-    result = result.select(vec!["*".to_string()]);
-    result = result.r#where("username", &input.username.clone());
-    result = result.crypto_compare("password", &input.password.clone());
+    let user = SqlBuilder::new()
+        .table("admin")
+        .select(vec!["*".to_string()])
+        .r#where("username", &input.username.clone())
+        .crypto_compare("password", &input.password.clone());
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
     struct SqlResponse {
@@ -39,10 +39,10 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         role: String,
     }
 
-    let data = match result.execute().await {
+    let user = match user.execute().await {
         Ok(mut r) => {
-            let data: Option<SqlResponse> = r.take(0).unwrap_or(None);
-            data
+            let user: Option<SqlResponse> = r.take(0).unwrap_or(None);
+            user
         }
         Err(err) => {
             return reponse_json(
@@ -55,7 +55,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         }
     };
 
-    if let None = data {
+    if let None = user {
         return reponse_json(
             json!({
               "status": "error",
@@ -65,11 +65,11 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         );
     }
 
-    let data = data.unwrap();
-    let token = jwt::sign(data.clone().id, data.clone().role);
+    let user = user.unwrap();
+    let token = jwt::sign(user.clone().id, user.clone().role);
     return reponse_json(
         json!({
-          "data": data,
+          "user": user,
           "jwt": {
             "type": "Bearer",
             "token": token.0,
@@ -121,10 +121,10 @@ mod tests {
             let (_, body) = res.into_parts();
             let body = hyper::body::to_bytes(body).await.unwrap();
             let body: Value = serde_json::from_slice(&body).unwrap();
-            assert_eq!(body["data"]["id"], "admin:id_test");
-            assert_eq!(body["data"]["name"], "Admin");
-            assert_eq!(body["data"]["username"], "admin");
-            assert_eq!(body["data"]["role"], "super_admin");
+            assert_eq!(body["user"]["id"], "admin:id_test");
+            assert_eq!(body["user"]["name"], "Admin");
+            assert_eq!(body["user"]["username"], "admin");
+            assert_eq!(body["user"]["role"], "super_admin");
             assert_eq!(body["jwt"]["type"], "Bearer");
             assert_eq!(body["jwt"]["expires_in"].as_i64().unwrap() > 0, true);
         });
