@@ -129,3 +129,64 @@ pub async fn is_install() -> Response<Body> {
         ),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::db::{get_database, Record};
+
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_install() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let dbs = get_database().await;
+            let data = json!({
+                "username": "admin_installing",
+                "password": "1234"
+            });
+            if let Ok(_) = dbs
+                .disk
+                .delete::<Option<Record>>(("installing", "installing"))
+                .await
+            {
+                // remove
+            }
+            // install
+            let res = install(Json(data)).await;
+            assert_eq!(res.status(), StatusCode::OK);
+            let (_, body) = res.into_parts();
+            let body = hyper::body::to_bytes(body).await.unwrap();
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["status"], "success");
+            // check if installed
+            let res = is_install().await;
+            assert_eq!(res.status(), StatusCode::OK);
+            let (_, body) = res.into_parts();
+            let body = hyper::body::to_bytes(body).await.unwrap();
+            let body: Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["is_installed"], true);
+            if let Ok(mut user) = dbs
+                .disk
+                .query("SELECT * FROM admin where username=$username")
+                .bind(("username", "admin_installing"))
+                .await
+            {
+                #[derive(Clone, serde::Serialize, serde::Deserialize)]
+                struct User {
+                    id: surrealdb::sql::Thing,
+                }
+                let user: Option<User> = user.take(0).unwrap_or(None);
+                if user.is_some() {
+                    if let Ok(_) = dbs
+                        .disk
+                        .delete::<Option<Record>>(("admin", user.unwrap().id))
+                        .await
+                    {
+                        // remove
+                    }
+                }
+            }
+        });
+    }
+}

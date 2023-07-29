@@ -95,20 +95,28 @@ mod tests {
                 "username": "admin",
                 "password": "1234"
             });
-            dbs.disk.query(
-                "CREATE admin:id_test 
+            dbs.disk
+                .query(
+                    "CREATE admin:id_test 
                 SET name = $name, 
                 username=$username, 
                 password=crypto::argon2::generate($password),
                 role=$role",
-            )
-            .bind(("name", "Admin"))
-            .bind(("username", data["username"].clone()))
-            .bind(("password", data["password"].clone()))
-            .bind(("role", "super_admin"))
-            .await.unwrap();
+                )
+                .bind(("name", "Admin"))
+                .bind(("username", data["username"].clone()))
+                .bind(("password", data["password"].clone()))
+                .bind(("role", "super_admin"))
+                .await
+                .unwrap();
             let res = authen(Json(data)).await;
-            let _ = dbs.disk.delete::<Option<Record>>(("admin", "id_test")).await.unwrap();
+            if let Ok(_) = dbs
+                .disk
+                .delete::<Option<Record>>(("admin", "id_test"))
+                .await
+            {
+                // remove test data
+            }
             assert_eq!(res.status(), StatusCode::OK);
             let (_, body) = res.into_parts();
             let body = hyper::body::to_bytes(body).await.unwrap();
@@ -138,5 +146,4 @@ mod tests {
             assert_eq!(body["message"], "Username or password is incorrect");
         });
     }
-
 }
