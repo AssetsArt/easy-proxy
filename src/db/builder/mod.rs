@@ -102,6 +102,9 @@ impl SqlBuilder {
 
     pub async fn execute(&self) -> Result<Response, surrealdb::Error> {
         let result = self.builder(Builder::None).await;
+        if self.table == String::new() {
+            return Err(surrealdb::Error::Db(surrealdb::error::Db::InvalidParam { name: "Table is not set".to_string() }));
+        }
         match result.await {
             Ok(r) => Ok(r),
             Err(e) => Err(e),
