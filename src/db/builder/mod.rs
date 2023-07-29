@@ -100,11 +100,11 @@ impl SqlBuilder {
         result
     }
 
-    pub async fn execute(&self) -> Option<Response> {
+    pub async fn execute(&self) -> Result<Response, surrealdb::Error> {
         let result = self.builder(Builder::None).await;
         match result.await {
-            Ok(r) => Some(r),
-            Err(_) => None,
+            Ok(r) => Ok(r),
+            Err(e) => Err(e),
         }
     }
 

@@ -40,15 +40,15 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
     }
 
     let data = match result.execute().await {
-        Some(mut r) => {
+        Ok(mut r) => {
             let data: Option<SqlResponse> = r.take(0).unwrap_or(None);
             data
         }
-        None => {
+        Err(err) => {
             return reponse_json(
                 json!({
                   "status": "error",
-                  "message": "Database error"
+                  "message": err.to_string()
                 }),
                 StatusCode::INTERNAL_SERVER_ERROR,
             )
