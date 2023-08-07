@@ -1,5 +1,5 @@
 use crate::{
-    api::utils::reponse_json,
+    app::utils::reponse_json,
     db::{get_database, model, Record},
 };
 use axum::{body::Body, http::StatusCode, response::Response, Json};
@@ -175,11 +175,13 @@ mod tests {
                     id: surrealdb::sql::Thing,
                 }
                 let user: Option<User> = user.take(0).unwrap_or(None);
-                if user.is_some() && dbs
+                if user.is_some()
+                    && dbs
                         .disk
                         .delete::<Option<Record>>(("admin", user.unwrap().id))
                         .await
-                        .is_ok() {
+                        .is_ok()
+                {
                     // remove
                 }
             }

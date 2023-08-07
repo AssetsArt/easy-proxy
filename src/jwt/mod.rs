@@ -11,7 +11,7 @@ pub struct Claims {
 }
 
 pub fn sign(id: surrealdb::sql::Thing, role: String) -> (String, Claims) {
-    let jwt_cert = config::load_global_config().jwt_cert.as_str();
+    let jwt_cert = config::global_config().jwt_cert.as_str();
     let expiration = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::hours(8))
         .expect("valid timestamp")
@@ -35,7 +35,7 @@ pub fn sign(id: surrealdb::sql::Thing, role: String) -> (String, Claims) {
 }
 
 pub fn verify(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-    let jwt_cert = config::load_global_config().jwt_cert.as_str();
+    let jwt_cert = config::global_config().jwt_cert.as_str();
     let binding = std::fs::read(jwt_cert).unwrap();
     let read = binding.as_slice();
     jsonwebtoken::decode::<Claims>(

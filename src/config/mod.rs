@@ -10,7 +10,7 @@ pub struct Config {
     pub jwt_cert: String,
 }
 
-pub fn load_global_config() -> &'static Config {
+pub fn global_config() -> &'static Config {
     static INIT_CONFIG: Once = Once::new();
     static mut GLOBAL_CONFIG: *const Config = std::ptr::null();
 

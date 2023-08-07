@@ -15,7 +15,7 @@ use axum::{
 use crate::config;
 
 pub async fn start() {
-    let addr = config::load_global_config().api_host.clone();
+    let addr = config::global_config().api_host.clone();
 
     let mut router = Router::new();
     router = router.route("/", any(home));
@@ -30,7 +30,7 @@ pub async fn start() {
             .nest("/admin", admin_router),
     );
 
-    println!("API server listening on {}", addr);
+    tracing::info!("App controller is running on {}", addr);
     axum::Server::bind(&addr.parse().unwrap())
         .serve(router.into_make_service())
         .await
