@@ -55,7 +55,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         }
     };
 
-    if let None = user {
+    if user.is_none() {
         return reponse_json(
             json!({
               "status": "error",
@@ -67,7 +67,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
 
     let user = user.unwrap();
     let token = jwt::sign(user.clone().id, user.clone().role);
-    return reponse_json(
+    reponse_json(
         json!({
           "user": user,
           "jwt": {
@@ -77,7 +77,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
           }
         }),
         StatusCode::OK,
-    );
+    )
 }
 
 #[cfg(test)]
@@ -110,12 +110,13 @@ mod tests {
                 .await
                 .unwrap();
             let res = authen(Json(data)).await;
-            if let Ok(_) = dbs
+            if dbs
                 .disk
                 .delete::<Option<Record>>(("admin", "id_test"))
                 .await
+                .is_ok()
             {
-                // remove test data
+                // println!("Delete test user");
             }
             assert_eq!(res.status(), StatusCode::OK);
             let (_, body) = res.into_parts();
@@ -126,7 +127,7 @@ mod tests {
             assert_eq!(body["user"]["username"], "admin");
             assert_eq!(body["user"]["role"], "super_admin");
             assert_eq!(body["jwt"]["type"], "Bearer");
-            assert_eq!(body["jwt"]["expires_in"].as_i64().unwrap() > 0, true);
+            assert!(body["jwt"]["expires_in"].as_i64().unwrap() > 0);
         });
     }
 

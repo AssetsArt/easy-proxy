@@ -31,7 +31,9 @@ pub fn load_global_config() -> &'static Config {
                     Err(_) => panic!("current dir not found"),
                 };
 
-                if !std::path::Path::new(&format!("{}/cert/jwt.pem", cwd.to_str().unwrap())).exists() {
+                if !std::path::Path::new(&format!("{}/cert/jwt.pem", cwd.to_str().unwrap()))
+                    .exists()
+                {
                     panic!("jwt cert file not found");
                 }
                 format!("{}/cert/jwt.pem", cwd.to_str().unwrap())
@@ -41,10 +43,7 @@ pub fn load_global_config() -> &'static Config {
         let config = Config {
             host: cli_config.host.unwrap_or("0.0.0.0:8100".to_string()),
             api_host: cli_config.api_host.unwrap_or("0.0.0.0:3100".to_string()),
-            authen: match cli_config.authen {
-                Some(authen) => Some(authen),
-                None => None,
-            },
+            authen: cli_config.authen,
             jwt_cert: cert,
         };
         unsafe {

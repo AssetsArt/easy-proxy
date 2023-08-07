@@ -1,5 +1,5 @@
-use surrealdb::Response;
 use super::get_database;
+use surrealdb::Response;
 
 enum Builder {
     None,
@@ -11,6 +11,12 @@ pub struct SqlBuilder {
     pub binds: Vec<(String, String)>,
     pub table: String,
     pub statement: Vec<String>,
+}
+
+impl Default for SqlBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SqlBuilder {
@@ -32,8 +38,8 @@ impl SqlBuilder {
         let mut fields = String::new();
         for f in field {
             // fist
-            if fields.len() == 0 {
-                fields = format!("{}", f);
+            if fields.is_empty() {
+                fields = f.to_string();
                 continue;
             }
             fields = format!("{}, {}", fields, f);
@@ -45,10 +51,10 @@ impl SqlBuilder {
     }
 
     pub fn r#where(&mut self, field: &str, value: &str) -> Self {
-        if self.query.len() == 0 {
+        if self.query.is_empty() {
             self.query.push(format!("SELECT * FROM {}", self.table));
         }
-        if self.statement.len() == 0 {
+        if self.statement.is_empty() {
             self.statement.push(format!("WHERE {} = ${}", field, field));
         } else {
             self.statement.push(format!("AND {} = ${}", field, field));
@@ -59,10 +65,10 @@ impl SqlBuilder {
 
     pub fn crypto_compare(&mut self, field: &str, value: &str) -> Self {
         // crypto::argon2::compare(password, $password)
-        if self.query.len() == 0 {
+        if self.query.is_empty() {
             self.query.push(format!("SELECT * FROM {}", self.table));
         }
-        if self.statement.len() == 0 {
+        if self.statement.is_empty() {
             self.statement.push(format!(
                 "WHERE crypto::argon2::compare({}, ${})",
                 field, field
@@ -77,7 +83,10 @@ impl SqlBuilder {
         self.clone()
     }
 
-    async fn builder(&self, state: Builder) -> surrealdb::method::Query<'_, surrealdb::engine::local::Db> {
+    async fn builder(
+        &self,
+        _state: Builder,
+    ) -> surrealdb::method::Query<'_, surrealdb::engine::local::Db> {
         let dbs = get_database().await;
         let db = &dbs.disk;
         let mut query = String::new();
@@ -89,9 +98,7 @@ impl SqlBuilder {
             statement = format!("{} {}", statement, s);
         }
         let query = format!("{} {}", query, statement);
-        match state {
-            _ => {}
-        }
+        {}
         // println!("query: {}", query);
         let mut result = db.query(&query);
         for b in &self.binds {
@@ -103,12 +110,13 @@ impl SqlBuilder {
     pub async fn execute(&self) -> Result<Response, surrealdb::Error> {
         let result = self.builder(Builder::None).await;
         if self.table == String::new() {
-            return Err(surrealdb::Error::Db(surrealdb::error::Db::InvalidParam { name: "Table is not set".to_string() }));
+            return Err(surrealdb::Error::Db(surrealdb::error::Db::InvalidParam {
+                name: "Table is not set".to_string(),
+            }));
         }
         match result.await {
             Ok(r) => Ok(r),
             Err(e) => Err(e),
         }
     }
-
 }

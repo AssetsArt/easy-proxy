@@ -18,5 +18,4 @@ pub struct CliConfig {
     #[argh(option)]
     /// jwt cert file default cert/jwt.pem
     pub jwt_cert: Option<String>,
-    
 }

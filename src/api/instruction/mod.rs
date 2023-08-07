@@ -1,2 +1,2 @@
-pub mod installing;
 pub mod admin;
+pub mod installing;
