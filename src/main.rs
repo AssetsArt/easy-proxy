@@ -13,5 +13,8 @@ async fn main() {
     tokio::spawn(async move {
         api::start().await;
     });
-    proxy::server::start().await;
+    match proxy::server::listener().await {
+        Ok(_) => println!("Proxy server stopped"),
+        Err(e) => eprintln!("Error: {}", e),
+    }
 }
