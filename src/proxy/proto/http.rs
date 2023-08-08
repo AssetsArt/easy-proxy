@@ -47,10 +47,6 @@ impl HttpParse {
         self.headers.insert(key.to_string().to_lowercase(), value.to_string());
     }
 
-    pub fn overwrite_header(&mut self, key: &str, value: &str) {
-        self.headers.insert(key.to_string().to_lowercase(), value.to_string());
-    }
-
     pub fn remove_header(&mut self, key: &str) {
         self.headers.remove(key.to_lowercase().as_str());
     }

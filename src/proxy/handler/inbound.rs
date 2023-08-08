@@ -7,8 +7,6 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-// use super::http_parse::http_parser;
-
 pub async fn inbound(
     mut client_stream: TcpStream,
     _addr: SocketAddr,
@@ -54,7 +52,7 @@ pub async fn inbound(
         // TODO: find remote server and filter
         // mock
         let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
-        http.overwrite_header("Host", "myhost.com");
+        http.set_header("Host", "myhost.com");
         // end
 
         // TODO: connect to remote server
