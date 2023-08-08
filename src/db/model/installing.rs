@@ -1,11 +1,6 @@
-use serde::{
-  Deserialize,
-  Serialize
-};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Installing {
-  pub is_installed: bool,
+    pub is_installed: bool,
 }
-
-

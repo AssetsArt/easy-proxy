@@ -1,5 +1,5 @@
 use crate::{
-    api::utils::reponse_json,
+    app::utils::reponse_json,
     db::{get_database, model, Record},
 };
 use axum::{body::Body, http::StatusCode, response::Response, Json};
@@ -35,19 +35,16 @@ pub async fn install(mut input: Json<Value>) -> Response<Body> {
         Err(_) => None,
     };
 
-    match install {
-        Some(data) => {
-            if data.is_installed {
-                return reponse_json(
-                    json!({
-                        "status": "error",
-                        "message": "Database already installed"
-                    }),
-                    StatusCode::BAD_REQUEST,
-                );
-            }
+    if let Some(data) = install {
+        if data.is_installed {
+            return reponse_json(
+                json!({
+                    "status": "error",
+                    "message": "Database already installed"
+                }),
+                StatusCode::BAD_REQUEST,
+            );
         }
-        None => {}
     }
 
     // create the installing table
@@ -99,13 +96,13 @@ pub async fn install(mut input: Json<Value>) -> Response<Body> {
         );
     }
 
-    return reponse_json(
+    reponse_json(
         json!({
             "status": "error",
             "message": "Could not create installing table"
         }),
         StatusCode::BAD_REQUEST,
-    );
+    )
 }
 
 pub async fn is_install() -> Response<Body> {
@@ -145,10 +142,11 @@ mod tests {
                 "username": "admin_installing",
                 "password": "1234"
             });
-            if let Ok(_) = dbs
+            if dbs
                 .disk
                 .delete::<Option<Record>>(("installing", "installing"))
                 .await
+                .is_ok()
             {
                 // remove
             }
@@ -177,14 +175,14 @@ mod tests {
                     id: surrealdb::sql::Thing,
                 }
                 let user: Option<User> = user.take(0).unwrap_or(None);
-                if user.is_some() {
-                    if let Ok(_) = dbs
+                if user.is_some()
+                    && dbs
                         .disk
                         .delete::<Option<Record>>(("admin", user.unwrap().id))
                         .await
-                    {
-                        // remove
-                    }
+                        .is_ok()
+                {
+                    // remove
                 }
             }
         });

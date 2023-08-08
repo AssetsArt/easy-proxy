@@ -12,11 +12,10 @@ pub struct CliConfig {
     pub host: Option<String>,
 
     #[argh(option)]
-    /// web api and ui server default 0.0.0.0:3000
+    /// web api and ui server default 0.0.0.0:3100
     pub api_host: Option<String>,
 
     #[argh(option)]
     /// jwt cert file default cert/jwt.pem
     pub jwt_cert: Option<String>,
-    
 }

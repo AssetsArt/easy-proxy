@@ -7,7 +7,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
     response::Response,
-    routing::{any, post, get},
+    routing::{any, get, post},
     Router,
 };
 
@@ -15,21 +15,22 @@ use axum::{
 use crate::config;
 
 pub async fn start() {
-    let addr = config::load_global_config().api_host.clone();
+    let addr = config::global_config().api_host.clone();
 
     let mut router = Router::new();
     router = router.route("/", any(home));
-    
-    let admin_router = Router::new()
-    .route("/authen", post(instruction::admin::authen::authen));
 
-    router = router.nest("/api", Router::new()
-        .route("/install", post(instruction::installing::install))
-        .route("/is_install", get(instruction::installing::is_install))
-        .nest("/admin", admin_router)
+    let admin_router = Router::new().route("/authen", post(instruction::admin::authen::authen));
+
+    router = router.nest(
+        "/api",
+        Router::new()
+            .route("/install", post(instruction::installing::install))
+            .route("/is_install", get(instruction::installing::is_install))
+            .nest("/admin", admin_router),
     );
 
-    println!("API server listening on {}", addr);
+    tracing::info!("App controller is running on {}", addr);
     axum::Server::bind(&addr.parse().unwrap())
         .serve(router.into_make_service())
         .await
