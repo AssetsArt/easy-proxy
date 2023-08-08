@@ -7,27 +7,83 @@ const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
 
 #[derive(Clone, Debug)]
 pub struct HttpParse {
-    pub method: String,
-    pub path: String,
-    pub version: String,
-    pub headers: HashMap<String, String>,
-    pub body: BytesMut,
+    method: String,
+    path: String,
+    version: String,
+    headers: HashMap<String, String>,
+    body: BytesMut,
 }
 
-impl Default for HttpParse {
-    fn default() -> Self {
-        Self {
-            method: String::new(),
-            path: String::new(),
-            version: String::new(),
-            headers: HashMap::new(),
-            body: BytesMut::new(),
+impl HttpParse {
+    pub fn new(buf: &mut BytesMut) -> Result<HttpParse, String> {
+        http_parser(buf)
+    }
+
+    pub fn get_header(&self, key: &str) -> Option<&String> {
+        self.headers.get(key)
+    }
+
+    pub fn get_body(&self) -> &BytesMut {
+        &self.body
+    }
+
+    pub fn get_method(&self) -> &str {
+        &self.method
+    }
+
+    pub fn get_path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn get_version(&self) -> &str {
+        &self.version
+    }
+
+    pub fn get_headers(&self) -> &HashMap<String, String> {
+        &self.headers
+    }
+
+    pub fn set_header(&mut self, key: &str, value: &str) {
+        self.headers.insert(key.to_string(), value.to_string());
+    }
+
+    pub fn overwrite_header(&mut self, key: &str, value: &str) {
+        self.headers.remove(key);
+        self.headers.insert(key.to_string(), value.to_string());
+    }
+
+    pub fn remove_header(&mut self, key: &str) {
+        self.headers.remove(key);
+    }
+
+    pub fn to_tcp_payload(&self) -> Vec<u8> {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(self.method.as_bytes());
+        payload.extend_from_slice(b" ");
+        payload.extend_from_slice(self.path.as_bytes());
+        payload.extend_from_slice(b" ");
+        payload.extend_from_slice(self.version.as_bytes());
+        payload.extend_from_slice(b"\r\n");
+        for (key, value) in &self.headers {
+            payload.extend_from_slice(key.as_bytes());
+            payload.extend_from_slice(b": ");
+            payload.extend_from_slice(value.as_bytes());
+            payload.extend_from_slice(b"\r\n");
         }
+        payload.extend_from_slice(b"\r\n");
+        payload.extend_from_slice(&self.body);
+        payload
     }
 }
 
-pub fn http_parser(buf: &mut BytesMut) -> Result<HttpParse, String> {
-    let mut http_request = HttpParse::default();
+fn http_parser(buf: &mut BytesMut) -> Result<HttpParse, String> {
+    let mut http_request = HttpParse {
+        method: "".to_string(),
+        path: "".to_string(),
+        version: "".to_string(),
+        headers: HashMap::new(),
+        body: BytesMut::new(),
+    };
     /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
     let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
         unsafe { MaybeUninit::uninit().assume_init() };

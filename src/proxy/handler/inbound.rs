@@ -1,17 +1,17 @@
 use crate::proxy::handler::remote_stream;
+use crate::proxy::proto::http::HttpParse;
 use crate::proxy::response::Response;
-use crate::proxy::transport::listener::Addrs;
 use bytes::BytesMut;
 use std::error::Error;
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use super::http_parse::http_parser;
+// use super::http_parse::http_parser;
 
 pub async fn inbound(
     mut client_stream: TcpStream,
-    _addr: Addrs,
+    _addr: SocketAddr,
     http_version: http::Version,
 ) -> Result<(), Box<dyn Error>> {
     tracing::info!("New client connection from {}", client_stream.peer_addr()?);
@@ -40,7 +40,7 @@ pub async fn inbound(
 
         // TODO: HTTP parser
         let mut mut_bytes = BytesMut::from(&buf[0..n]);
-        let _http = match http_parser(&mut mut_bytes) {
+        let mut http = match HttpParse::new(&mut mut_bytes) {
             Ok(h) => h,
             Err(e) => {
                 let msg = format!("Error parsing HTTP request -> {}", e);
@@ -53,7 +53,8 @@ pub async fn inbound(
 
         // TODO: find remote server and filter
         // mock
-        let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
+        let remote_server: SocketAddr = "103.102.166.224:80".to_string().parse()?;
+        http.overwrite_header("host", "en.wikipedia.org");
         // end
 
         // TODO: connect to remote server
@@ -74,7 +75,7 @@ pub async fn inbound(
 
         // TODO: forward request to remote server
         let (mut server_reader, mut server_writer) = server_stream.as_mut().unwrap().split();
-        server_writer.write_all(&mut_bytes).await?;
+        server_writer.write_all(&http.to_tcp_payload()).await?;
         server_writer.flush().await?;
         // TODO: read response from remote server
         let n = server_reader.read(&mut buf).await?;
