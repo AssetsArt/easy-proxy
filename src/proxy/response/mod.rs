@@ -70,4 +70,19 @@ impl Response {
         response.body = msg.as_bytes().to_vec();
         response.to_bytes()
     }
+
+    pub fn bad_request(&mut self, msg: String) -> Vec<u8> {
+        let mut response = self.clone();
+        response = response.status(400);
+        response.body = Vec::new();
+        response
+            .headers
+            .push(("Content-Length".to_string(), msg.len().to_string()));
+        response
+            .headers
+            .push(("Content-Type".to_string(), "text/plain".to_string()));
+        response.body = msg.as_bytes().to_vec();
+        response.to_bytes()
+    }
+
 }

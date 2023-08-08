@@ -1,10 +1,13 @@
 use crate::proxy::handler::remote_stream;
 use crate::proxy::response::Response;
 use crate::proxy::transport::listener::Addrs;
+use bytes::BytesMut;
 use std::error::Error;
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+
+use super::http_parse::http_parser;
 
 pub async fn inbound(
     mut client_stream: TcpStream,
@@ -19,6 +22,7 @@ pub async fn inbound(
     let max_request_size = 4 * 1024 * 1024;
     let mut buf = vec![0; max_request_size + 1];
 
+    // TODO: read request from client
     while let Ok(n) = client_reader.read(&mut buf).await {
         if n == 0 {
             break;
@@ -34,6 +38,24 @@ pub async fn inbound(
             break;
         }
 
+        // TODO: HTTP parser
+        let mut mut_bytes = BytesMut::from(&buf[0..n]);
+        let _http = match http_parser(&mut mut_bytes) {
+            Ok(h) => h,
+            Err(e) => {
+                let msg = format!("Error parsing HTTP request -> {}", e);
+                client_writer
+                    .write_all(Response::builder(http_version).bad_request(msg).as_slice())
+                    .await?;
+                return Ok(());
+            }
+        };
+
+        // TODO: find remote server and filter
+
+        // end
+
+        // TODO: connect to remote server
         match remote_stream(&mut server_stream, remote_server).await {
             Ok(s) => Some(s),
             Err(e) => {
@@ -49,14 +71,17 @@ pub async fn inbound(
             }
         };
 
+        // TODO: forward request to remote server
         let (mut server_reader, mut server_writer) = server_stream.as_mut().unwrap().split();
-        server_writer.write_all(&buf[0..n]).await?;
+        server_writer.write_all(&mut_bytes).await?;
 
+        // TODO: read response from remote server
         let n = server_reader.read(&mut buf).await?;
         if n == 0 {
             break;
         }
 
+        // TODO: forward response to client
         client_writer.write_all(&buf[0..n]).await?;
     }
     Ok(())
