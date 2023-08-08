@@ -14,7 +14,6 @@ pub async fn inbound(
     _addr: Addrs,
     http_version: http::Version,
 ) -> Result<(), Box<dyn Error>> {
-    let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
     let (mut client_reader, mut client_writer) = client_stream.split();
     let mut server_stream: Option<TcpStream> = None;
 
@@ -25,6 +24,7 @@ pub async fn inbound(
     // TODO: read request from client
     while let Ok(n) = client_reader.read(&mut buf).await {
         if n == 0 {
+            println!("remote server closed");
             break;
         } else if n > max_request_size {
             // 413 Request Entity Too Large
@@ -51,8 +51,13 @@ pub async fn inbound(
             }
         };
 
-        // TODO: find remote server and filter
+        // println!("{}", String::from_utf8_lossy(&buf[0..n]));
+        println!("{} -> {}", _http.method, _http.path);
+        println!("[req] bytes: {}", n);
 
+        // TODO: find remote server and filter
+        // mock
+        let remote_server: SocketAddr = "192.168.1.170:4100".to_string().parse()?;
         // end
 
         // TODO: connect to remote server
@@ -78,11 +83,15 @@ pub async fn inbound(
         // TODO: read response from remote server
         let n = server_reader.read(&mut buf).await?;
         if n == 0 {
+            println!("remote server closed");
             break;
         }
+        println!("[res] bytes: {}", n);
 
         // TODO: forward response to client
         client_writer.write_all(&buf[0..n]).await?;
+        println!("write to client");
     }
+    println!("close client");
     Ok(())
 }
