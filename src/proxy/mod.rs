@@ -1,15 +1,13 @@
 // // mod
-mod handler;
-mod io;
-mod response;
-mod transport;
 mod filter;
+mod handler;
+pub mod proto;
+mod response;
 
 // use
 use crate::config;
-use crate::proxy::transport::listener::{Bind, BindTcp};
-use futures::StreamExt;
-use std::error::Error;
+use std::{error::Error, net::SocketAddr};
+use tokio::net::TcpListener;
 
 pub async fn serve() -> Result<(), Box<dyn Error>> {
     // global config
@@ -17,23 +15,20 @@ pub async fn serve() -> Result<(), Box<dyn Error>> {
     let addr = config.host.clone();
     let server_addr: std::net::SocketAddr = addr.parse()?;
 
-    // bind tcp
-    let (server, mut incoming) = match BindTcp::default().bind(&server_addr, None) {
-        Ok((server, incoming)) => (server, incoming),
-        Err(e) => {
-            tracing::error!("Error binding to {}: {}", server_addr, e);
-            return Err(e.to_string().into());
-        }
-    };
-
-    tracing::info!("TCP proxy server listening on: {:?}", server);
-    while let Some(Ok((addrs, client_stream))) = incoming.next().await {
+    // Create a TCP listener which will listen for incoming connections.
+    let listener = TcpListener::bind(server_addr).await?;
+    tracing::info!("TCP proxy server listening on: {}", server_addr);
+    // Accept incoming TCP connections
+    while let Ok((client_stream, _)) = listener.accept().await {
+        let socket_addr: SocketAddr = client_stream.peer_addr().unwrap();
         tokio::spawn(async move {
-            // new client
-            if let Err(e) = handler::inbound(client_stream, addrs, http::Version::HTTP_11).await {
+            if let Err(e) =
+                handler::inbound(client_stream, socket_addr, http::Version::HTTP_11).await
+            {
                 tracing::error!("Internal error: {}", e);
             }
         });
     }
+
     Ok(())
 }
