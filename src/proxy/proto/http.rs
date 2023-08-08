@@ -44,16 +44,15 @@ impl HttpParse {
     }
 
     pub fn set_header(&mut self, key: &str, value: &str) {
-        self.headers.insert(key.to_string(), value.to_string());
+        self.headers.insert(key.to_string().to_lowercase(), value.to_string());
     }
 
     pub fn overwrite_header(&mut self, key: &str, value: &str) {
-        self.headers.remove(key);
-        self.headers.insert(key.to_string(), value.to_string());
+        self.headers.insert(key.to_string().to_lowercase(), value.to_string());
     }
 
     pub fn remove_header(&mut self, key: &str) {
-        self.headers.remove(key);
+        self.headers.remove(key.to_lowercase().as_str());
     }
 
     pub fn to_tcp_payload(&self) -> Vec<u8> {

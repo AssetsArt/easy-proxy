@@ -53,8 +53,8 @@ pub async fn inbound(
 
         // TODO: find remote server and filter
         // mock
-        let remote_server: SocketAddr = "103.102.166.224:80".to_string().parse()?;
-        http.overwrite_header("host", "en.wikipedia.org");
+        let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
+        http.overwrite_header("Host", "myhost.com");
         // end
 
         // TODO: connect to remote server
