@@ -1,8 +1,8 @@
 use bytes::BytesMut;
 use std::{collections::HashMap, mem::MaybeUninit};
 
-// 32 KB max header size
-const MAX_HEADERS: usize = 32 * 1024;
+// 16 KB max header size
+const MAX_HEADERS: usize = 16 * 1024;
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
 
 #[derive(Clone, Debug)]
