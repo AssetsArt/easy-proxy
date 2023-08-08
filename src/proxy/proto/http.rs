@@ -5,6 +5,13 @@ use std::{collections::HashMap, mem::MaybeUninit};
 const MAX_HEADERS: usize = 16 * 1024;
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
 
+// Header can not set by user
+const IGNORE_HEADERS: [&str; 3] = [
+    "connection", 
+    "keep-alive", 
+    "content-length",
+];
+
 #[derive(Clone, Debug)]
 pub struct HttpParse {
     method: String,
@@ -44,11 +51,20 @@ impl HttpParse {
     }
 
     pub fn set_header(&mut self, key: &str, value: &str) {
-        self.headers.insert(key.to_string().to_lowercase(), value.to_string());
+        let set_key = key.to_string().to_lowercase();
+        if IGNORE_HEADERS.contains(&set_key.as_str()) {
+            return;
+        }
+        self.headers
+            .insert(set_key, value.to_string());
     }
 
     pub fn remove_header(&mut self, key: &str) {
-        self.headers.remove(key.to_lowercase().as_str());
+        let set_key = key.to_string().to_lowercase();
+        if IGNORE_HEADERS.contains(&set_key.as_str()) {
+            return;
+        }
+        self.headers.remove(set_key.as_str());
     }
 
     pub fn to_tcp_payload(&self) -> Vec<u8> {
@@ -79,12 +95,14 @@ fn http_parser(buf: &mut BytesMut) -> Result<HttpParse, String> {
         headers: HashMap::new(),
         body: BytesMut::new(),
     };
+    let len;
     /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
     let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
         unsafe { MaybeUninit::uninit().assume_init() };
     let mut req = httparse::Request::new(&mut []);
     match req.parse_with_uninit_headers(buf, &mut headers) {
-        Ok(httparse::Status::Complete(_)) => {
+        Ok(httparse::Status::Complete(parse_len)) => {
+            len = parse_len;
             let uri = req.path.unwrap_or("/");
             if uri.len() > MAX_URI_LEN {
                 return Err("URI too long".to_string());
@@ -112,21 +130,16 @@ fn http_parser(buf: &mut BytesMut) -> Result<HttpParse, String> {
         2 => "HTTP/2.0".to_string(),
         _ => "HTTP/1.0".to_string(),
     };
-    let mut content_length: usize = 0;
     for header in req.headers {
         let name = header.name.to_lowercase();
-        if name == "content-length" {
-            content_length = String::from_utf8(header.value.to_vec())
-                .unwrap_or("0".to_string())
-                .parse::<usize>()
-                .unwrap_or(0);
-        }
         http_request.headers.insert(
             name,
             String::from_utf8(header.value.to_vec()).unwrap_or("".to_string()),
         );
     }
-    let buf = buf.split_off(buf.len() - content_length);
+    let buf = buf.split_off(len);
     http_request.body = buf;
+    http_request.headers.insert("content-length".to_string(), http_request.body.len().to_string());
+    // println!("http_request: {:?}", http_request);
     Ok(http_request)
 }
