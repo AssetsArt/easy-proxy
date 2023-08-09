@@ -2,7 +2,7 @@
 mod filter;
 mod handler;
 mod io;
-mod response;
+pub mod response;
 
 // use
 use crate::config;

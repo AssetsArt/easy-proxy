@@ -1,5 +1,5 @@
 use crate::proxy::io::tokiort::TokioIo;
-use crate::proxy::response::{bad_request, empty};
+use crate::proxy::response::empty;
 use bytes::Bytes;
 use http::{Method, Response};
 use http_body_util::{combinators::BoxBody, BodyExt};
@@ -11,6 +11,12 @@ use tokio::net::TcpStream;
 pub async fn inbound(
     req: hyper::Request<Incoming>,
 ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+    
+    let addr = format!("{}:{}", "127.0.0.1", 3000);
+    // set header
+    let mut req = req.map(|b| b.boxed());
+    req.headers_mut().insert("Host", "myhost.com".parse().unwrap());
+
     if Method::CONNECT == req.method() {
         // Received an HTTP request like:
         // ```
@@ -25,26 +31,18 @@ pub async fn inbound(
         // Note: only after client received an empty body with STATUS_OK can the
         // connection be upgraded, so we can't return a response inside
         // `on_upgrade` future.
-        if let Some(addr) = host_addr(req.uri()) {
-            tokio::task::spawn(async move {
-                match hyper::upgrade::on(req).await {
-                    Ok(upgraded) => {
-                        if let Err(e) = tunnel(upgraded, addr).await {
-                            tracing::error!("server io error: {}", e);
-                        };
-                    }
-                    Err(e) => tracing::error!("upgrade error: {}", e),
+        tokio::task::spawn(async move {
+            match hyper::upgrade::on(req).await {
+                Ok(upgraded) => {
+                    if let Err(e) = tunnel(upgraded, addr).await {
+                        tracing::error!("server io error: {}", e);
+                    };
                 }
-            });
-
-            Ok(Response::new(empty()))
-        } else {
-            tracing::error!("CONNECT host is not socket addr: {:?}", req.uri());
-            Ok(bad_request("CONNECT must be to a socket address"))
-        }
+                Err(e) => tracing::error!("upgrade error: {}", e),
+            }
+        });
+        Ok(Response::new(empty()))
     } else {
-        let addr = format!("{}:{}", "183.88.238.251", 80);
-
         let stream = TcpStream::connect(addr).await.unwrap();
         let io = TokioIo::new(stream);
 
@@ -60,17 +58,9 @@ pub async fn inbound(
             }
         });
 
-        // set header
-        let mut req = req.map(|b| b.boxed());
-        req.headers_mut().insert("Host", "dev.ketshoptest.com".parse().unwrap());
-
         let resp = sender.send_request(req).await?;
         Ok(resp.map(|b| b.boxed()))
     }
-}
-
-fn host_addr(uri: &http::Uri) -> Option<String> {
-    uri.authority().and_then(|auth| Some(auth.to_string()))
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
