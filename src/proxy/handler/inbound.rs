@@ -1,97 +1,85 @@
-use crate::proxy::handler::remote_stream;
-use crate::proxy::proto::http::HttpParse;
-use crate::proxy::response::Response;
-use bytes::BytesMut;
-use http::header::{CONNECTION, TRANSFER_ENCODING, UPGRADE};
-use std::error::Error;
-use std::net::SocketAddr;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use crate::proxy::io::tokiort::TokioIo;
+use crate::proxy::response::{bad_request, empty};
+use bytes::Bytes;
+use http::{Method, Response};
+use http_body_util::{combinators::BoxBody, BodyExt};
+use hyper::body::Incoming;
+use hyper::client::conn::http1::Builder;
+use hyper::upgrade::Upgraded;
 use tokio::net::TcpStream;
 
 pub async fn inbound(
-    mut client_stream: TcpStream,
-    _addr: SocketAddr,
-    http_version: http::Version,
-) -> Result<(), Box<dyn Error>> {
-    tracing::info!("New client connection from {}", client_stream.peer_addr()?);
-    let (mut client_reader, mut client_writer) = client_stream.split();
-    let mut server_stream: Option<TcpStream> = None;
+    req: hyper::Request<Incoming>,
+) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+    if Method::CONNECT == req.method() {
+        // Received an HTTP request like:
+        // ```
+        // CONNECT www.domain.com:443 HTTP/1.1
+        // Host: www.domain.com:443
+        // Proxy-Connection: Keep-Alive
+        // ```
+        //
+        // When HTTP method is CONNECT we should return an empty body
+        // then we can eventually upgrade the connection and talk a new protocol.
+        //
+        // Note: only after client received an empty body with STATUS_OK can the
+        // connection be upgraded, so we can't return a response inside
+        // `on_upgrade` future.
+        if let Some(addr) = host_addr(req.uri()) {
+            tokio::task::spawn(async move {
+                match hyper::upgrade::on(req).await {
+                    Ok(upgraded) => {
+                        if let Err(e) = tunnel(upgraded, addr).await {
+                            tracing::error!("server io error: {}", e);
+                        };
+                    }
+                    Err(e) => tracing::error!("upgrade error: {}", e),
+                }
+            });
 
-    // 4 MiB
-    let max_request_size = 4 * 1024 * 1024;
-    let mut buf = vec![0; max_request_size + 1];
-
-    // TODO: read request from client
-    while let Ok(n) = client_reader.read(&mut buf).await {
-        if n == 0 {
-            break;
-        } else if n > max_request_size {
-            // 413 Request Entity Too Large
-            let _ = client_writer
-                .write_all(
-                    Response::builder(http_version)
-                        .request_entity_too_arge()
-                        .as_slice(),
-                )
-                .await;
-            break;
+            Ok(Response::new(empty()))
+        } else {
+            tracing::error!("CONNECT host is not socket addr: {:?}", req.uri());
+            Ok(bad_request("CONNECT must be to a socket address"))
         }
+    } else {
+        let addr = format!("{}:{}", "183.88.238.251", 80);
 
-        // TODO: HTTP parser
-        let mut mut_bytes = BytesMut::from(&buf[0..n]);
-        let mut http = match HttpParse::new(&mut mut_bytes) {
-            Ok(h) => h,
-            Err(e) => {
-                let msg = format!("Error parsing HTTP request -> {}", e);
-                client_writer
-                    .write_all(Response::builder(http_version).bad_request(msg).as_slice())
-                    .await?;
-                return Ok(());
+        let stream = TcpStream::connect(addr).await.unwrap();
+        let io = TokioIo::new(stream);
+
+        let (mut sender, conn) = Builder::new()
+            .preserve_header_case(true)
+            .title_case_headers(true)
+            .handshake(io)
+            .await?;
+        
+        tokio::task::spawn(async move {
+            if let Err(err) = conn.await {
+                tracing::error!("Connection failed: {:?}", err);
             }
-        };
+        });
 
-        // TODO: find remote server and filter
-        // mock
-        let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
-        http.set_header("Host", "myhost.com");
+        // set header
+        let mut req = req.map(|b| b.boxed());
+        req.headers_mut().insert("Host", "dev.ketshoptest.com".parse().unwrap());
 
-        // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
-        http.remove_header(CONNECTION.as_str());
-        http.remove_header("keep-alive");
-        http.remove_header("proxy-connection");
-        http.remove_header(TRANSFER_ENCODING.as_str());
-        http.remove_header(UPGRADE.as_str());
-        // end
-
-        // TODO: connect to remote server
-        match remote_stream(&mut server_stream, remote_server).await {
-            Ok(s) => Some(s),
-            Err(e) => {
-                let msg = format!("Error connecting to {} -> {}", remote_server, e);
-                client_writer
-                    .write_all(
-                        Response::builder(http_version)
-                            .internal_server_error(msg)
-                            .as_slice(),
-                    )
-                    .await?;
-                return Ok(());
-            }
-        };
-
-        // TODO: forward request to remote server
-        let (mut server_reader, mut server_writer) = server_stream.as_mut().unwrap().split();
-        server_writer.write_all(&http.to_tcp_payload()).await?;
-        server_writer.flush().await?;
-        // TODO: read response from remote server
-        let n = server_reader.read(&mut buf).await?;
-        if n == 0 {
-            break;
-        }
-
-        // TODO: forward response to client
-        client_writer.write_all(&buf[0..n]).await?;
-        client_writer.flush().await?;
+        let resp = sender.send_request(req).await?;
+        Ok(resp.map(|b| b.boxed()))
     }
+}
+
+fn host_addr(uri: &http::Uri) -> Option<String> {
+    uri.authority().and_then(|auth| Some(auth.to_string()))
+}
+
+// Create a TCP connection to host:port, build a tunnel between the connection and
+// the upgraded connection
+async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
+    // Connect to remote server
+    let mut server = TcpStream::connect(addr).await?;
+    let mut upgraded = TokioIo::new(upgraded);
+    // Proxying data
+    tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
     Ok(())
 }

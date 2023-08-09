@@ -1,12 +1,25 @@
 use axum::{body::Body, response::Response};
 use http::StatusCode;
 use serde_json::Value;
+use futures::TryStreamExt;
 
 pub fn reponse_json(data: Value, status: StatusCode) -> Response<Body> {
     let mut res = Response::builder();
     res = res.header("Content-Type", "application/json");
     res = res.status(status);
     res.body(Body::from(data.to_string())).unwrap()
+}
+
+pub async fn body_to_bytes(body: Body) -> Result<Vec<u8>, String> {
+    match body
+    .try_fold(Vec::new(), |mut data, chunk| async move {
+        data.extend_from_slice(&chunk);
+        Ok(data)
+    })
+    .await {
+        Ok(r) => Ok(r),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[cfg(test)]
@@ -25,8 +38,14 @@ mod tests {
         );
         let (_, body) = res.into_parts();
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let body = hyper::body::to_bytes(body).await.unwrap();
-            assert_eq!(body, "{\"name\":\"test\"}".as_bytes());
+            let entire_body = body
+                .try_fold(Vec::new(), |mut data, chunk| async move {
+                    data.extend_from_slice(&chunk);
+                    Ok(data)
+                })
+                .await.unwrap();
+            let body: Value = serde_json::from_slice(&entire_body).unwrap();
+            assert_eq!(body, json!({"name": "test"}));
         });
     }
 }

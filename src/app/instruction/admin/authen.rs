@@ -82,7 +82,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{get_database, Record};
+    use crate::{db::{get_database, Record}, app::utils::body_to_bytes};
 
     use super::*;
     use serde_json::json;
@@ -120,7 +120,7 @@ mod tests {
             }
             assert_eq!(res.status(), StatusCode::OK);
             let (_, body) = res.into_parts();
-            let body = hyper::body::to_bytes(body).await.unwrap();
+            let body = body_to_bytes(body).await.unwrap();
             let body: Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["user"]["id"], "admin:id_test");
             assert_eq!(body["user"]["name"], "Admin");
@@ -141,7 +141,7 @@ mod tests {
             let res = authen(Json(data)).await;
             assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
             let (_, body) = res.into_parts();
-            let body = hyper::body::to_bytes(body).await.unwrap();
+            let body = body_to_bytes(body).await.unwrap();
             let body: Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["status"], "error");
             assert_eq!(body["message"], "Username or password is incorrect");
