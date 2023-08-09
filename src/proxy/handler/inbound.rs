@@ -1,3 +1,4 @@
+use crate::proxy::{filter, routes};
 use crate::proxy::io::tokiort::TokioIo;
 use crate::proxy::response::{empty, bad_gateway};
 use bytes::Bytes;
@@ -11,11 +12,13 @@ use tokio::net::TcpStream;
 pub async fn inbound(
     req: hyper::Request<Incoming>,
 ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
-    
-    let addr = format!("{}:{}", "127.0.0.1", 3000);
-    // set header
     let mut req = req.map(|b| b.boxed());
-    req.headers_mut().insert("Host", "myhost.com".parse().unwrap());
+
+    // route request
+    let addr = routes::find_route(&req).await;
+    let addr: String = format!("{}:{}", addr.ip, addr.port);
+    // filter request
+    req = filter::layer(req).await;
 
     if Method::CONNECT == req.method() {
         // Received an HTTP request like:

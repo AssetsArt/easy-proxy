@@ -3,6 +3,7 @@ mod filter;
 mod handler;
 mod io;
 pub mod response;
+pub mod routes;
 
 // use
 use crate::config;
