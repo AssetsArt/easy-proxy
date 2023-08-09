@@ -24,7 +24,7 @@ pub async fn serve() -> Result<(), Box<dyn Error>> {
     loop {
         let (stream, _) = listener.accept().await?;
         let io = io::tokiort::TokioIo::new(stream);
-        println!("io: {:?}", io);
+        // println!("io: {:?}", io);
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
                 .preserve_header_case(true)
@@ -33,7 +33,7 @@ pub async fn serve() -> Result<(), Box<dyn Error>> {
                 .with_upgrades()
                 .await
             {
-                println!("Failed to serve connection: {:?}", err);
+                tracing::error!("Failed to serve connection: {:?}", err);
             }
         });
     }
