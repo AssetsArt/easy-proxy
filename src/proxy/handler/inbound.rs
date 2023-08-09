@@ -2,6 +2,7 @@ use crate::proxy::handler::remote_stream;
 use crate::proxy::proto::http::HttpParse;
 use crate::proxy::response::Response;
 use bytes::BytesMut;
+use http::header::{CONNECTION, TRANSFER_ENCODING, UPGRADE};
 use std::error::Error;
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -53,6 +54,13 @@ pub async fn inbound(
         // mock
         let remote_server: SocketAddr = "127.0.0.1:3000".to_string().parse()?;
         http.set_header("Host", "myhost.com");
+
+        // https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.2
+        http.remove_header(CONNECTION.as_str());
+        http.remove_header("keep-alive");
+        http.remove_header("proxy-connection");
+        http.remove_header(TRANSFER_ENCODING.as_str());
+        http.remove_header(UPGRADE.as_str());
         // end
 
         // TODO: connect to remote server
