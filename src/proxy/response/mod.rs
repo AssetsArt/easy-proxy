@@ -18,3 +18,10 @@ pub fn bad_request<T: Into<Bytes>>(chunk: T) -> hyper::Response<BoxBody<Bytes, h
     *resp.status_mut() = http::StatusCode::BAD_REQUEST;
     resp
 }
+
+
+pub fn bad_gateway<T: Into<Bytes>>(chunk: T) -> hyper::Response<BoxBody<Bytes, hyper::Error>> {
+    let mut resp = hyper::Response::new(full(chunk));
+    *resp.status_mut() = http::StatusCode::BAD_GATEWAY;
+    resp
+}

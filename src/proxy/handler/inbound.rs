@@ -1,5 +1,5 @@
 use crate::proxy::io::tokiort::TokioIo;
-use crate::proxy::response::empty;
+use crate::proxy::response::{empty, bad_gateway};
 use bytes::Bytes;
 use http::{Method, Response};
 use http_body_util::{combinators::BoxBody, BodyExt};
@@ -43,7 +43,13 @@ pub async fn inbound(
         });
         Ok(Response::new(empty()))
     } else {
-        let stream = TcpStream::connect(addr).await.unwrap();
+        let stream = match TcpStream::connect(addr.clone()).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("connect error: {}", e);
+                return Ok(bad_gateway(format!("connect error: {} -> {}", e, addr.clone())));
+            }
+        };
         let io = TokioIo::new(stream);
 
         let (mut sender, conn) = Builder::new()
@@ -54,7 +60,7 @@ pub async fn inbound(
         
         tokio::task::spawn(async move {
             if let Err(err) = conn.await {
-                tracing::error!("Connection failed: {:?}", err);
+                tracing::error!("Connection failed: {:?} -> {}", err, addr);
             }
         });
 
