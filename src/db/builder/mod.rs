@@ -1,8 +1,9 @@
 use super::get_database;
 use surrealdb::Response;
 
-enum Builder {
-    None,
+enum Engine {
+    Disk,
+    Memory,
 }
 
 #[derive(Debug, Clone)]
@@ -85,10 +86,13 @@ impl SqlBuilder {
 
     async fn builder(
         &self,
-        _state: Builder,
+        state: Engine,
     ) -> surrealdb::method::Query<'_, surrealdb::engine::local::Db> {
         let dbs = get_database().await;
-        let db = &dbs.disk;
+        let db = match state {
+            Engine::Disk => &dbs.disk,
+            Engine::Memory => &dbs.memory,
+        };
         let mut query = String::new();
         for q in &self.query {
             query = format!("{} {}", query, q);
@@ -98,7 +102,6 @@ impl SqlBuilder {
             statement = format!("{} {}", statement, s);
         }
         let query = format!("{} {}", query, statement);
-        {}
         // println!("query: {}", query);
         let mut result = db.query(&query);
         for b in &self.binds {
@@ -107,8 +110,21 @@ impl SqlBuilder {
         result
     }
 
-    pub async fn execute(&self) -> Result<Response, surrealdb::Error> {
-        let result = self.builder(Builder::None).await;
+    pub async fn disk_execute(&self) -> Result<Response, surrealdb::Error> {
+        let result = self.builder(Engine::Disk).await;
+        if self.table == String::new() {
+            return Err(surrealdb::Error::Db(surrealdb::error::Db::InvalidParam {
+                name: "Table is not set".to_string(),
+            }));
+        }
+        match result.await {
+            Ok(r) => Ok(r),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn mem_execute(&self) -> Result<Response, surrealdb::Error> {
+        let result = self.builder(Engine::Memory).await;
         if self.table == String::new() {
             return Err(surrealdb::Error::Db(surrealdb::error::Db::InvalidParam {
                 name: "Table is not set".to_string(),

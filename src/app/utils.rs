@@ -1,7 +1,7 @@
 use axum::{body::Body, response::Response};
+use futures::TryStreamExt;
 use http::StatusCode;
 use serde_json::Value;
-use futures::TryStreamExt;
 
 pub fn reponse_json(data: Value, status: StatusCode) -> Response<Body> {
     let mut res = Response::builder();
@@ -12,11 +12,12 @@ pub fn reponse_json(data: Value, status: StatusCode) -> Response<Body> {
 
 pub async fn body_to_bytes(body: Body) -> Result<Vec<u8>, String> {
     match body
-    .try_fold(Vec::new(), |mut data, chunk| async move {
-        data.extend_from_slice(&chunk);
-        Ok(data)
-    })
-    .await {
+        .try_fold(Vec::new(), |mut data, chunk| async move {
+            data.extend_from_slice(&chunk);
+            Ok(data)
+        })
+        .await
+    {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }
@@ -43,7 +44,8 @@ mod tests {
                     data.extend_from_slice(&chunk);
                     Ok(data)
                 })
-                .await.unwrap();
+                .await
+                .unwrap();
             let body: Value = serde_json::from_slice(&entire_body).unwrap();
             assert_eq!(body, json!({"name": "test"}));
         });
