@@ -39,7 +39,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
         role: String,
     }
 
-    let user = match user.execute().await {
+    let user = match user.disk_execute().await {
         Ok(mut r) => {
             let user: Option<SqlResponse> = r.take(0).unwrap_or(None);
             user
@@ -82,7 +82,10 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{db::{get_database, Record}, app::utils::body_to_bytes};
+    use crate::{
+        app::utils::body_to_bytes,
+        db::{get_database, Record},
+    };
 
     use super::*;
     use serde_json::json;

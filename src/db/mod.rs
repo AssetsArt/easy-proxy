@@ -17,7 +17,7 @@ pub struct Database {
     pub database: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Record {
     #[allow(dead_code)]
     id: Thing,

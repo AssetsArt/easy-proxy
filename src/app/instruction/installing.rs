@@ -129,7 +129,10 @@ pub async fn is_install() -> Response<Body> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{db::{get_database, Record}, app::utils::body_to_bytes};
+    use crate::{
+        app::utils::body_to_bytes,
+        db::{get_database, Record},
+    };
 
     use super::*;
     use serde_json::json;
