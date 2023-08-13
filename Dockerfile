@@ -26,5 +26,4 @@ COPY --from=builder /app/target/release/easy-proxy ./
 EXPOSE 8100
 
 # default run entrypoint
-ENTRYPOINT ["/usr/bin/dumb-init", "--", "/app/easy-proxy"]
-CMD ["--authen", "${E_AUTH}"]
+CMD ["./easy-proxy", "--authen", "${E_AUTH}"]
