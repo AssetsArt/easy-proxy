@@ -14,7 +14,7 @@ async fn main() {
     tokio::spawn(async move {
         app::start().await;
     });
-    match proxy::serve().await {
+    match proxy::Proxy::new().listen().await {
         Ok(_) => {
             tracing::info!("Proxy server stopped");
         }

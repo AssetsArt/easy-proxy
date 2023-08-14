@@ -1,33 +1,92 @@
+use std::net::SocketAddr;
+
 use crate::proxy::io::tokiort::TokioIo;
 use crate::proxy::response::{bad_gateway, empty, service_unavailable};
 use crate::proxy::{filter, services};
 use bytes::Bytes;
 use http::{Method, Response};
 use http_body_util::{combinators::BoxBody, BodyExt};
-use hyper::body::Incoming;
-use hyper::client::conn::http1::Builder;
-use hyper::upgrade::Upgraded;
+use hyper::{body::Incoming, client::conn::http1::Builder, upgrade::Upgraded};
 use tokio::net::TcpStream;
 
-pub async fn inbound(
-    req: hyper::Request<Incoming>,
-) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
-    let mut req = req.map(|b| b.boxed());
+pub struct Inbound {}
 
-    // route request
-    let service = match services::find(&req).await {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("service unavailable: {}", e);
-            return Ok(service_unavailable("503 Service Temporarily Unavailable"));
+impl Inbound {
+    pub fn new() -> Self {
+        Inbound {}
+    }
+}
+
+impl Inbound {
+    pub async fn inbound(
+        &self,
+        req: hyper::Request<Incoming>,
+        _addr: SocketAddr,
+    ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+        let mut req = req.map(|b| b.boxed());
+
+        // route request
+        let service = match services::find(&req).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("service unavailable: {}", e);
+                return Ok(service_unavailable("503 Service Temporarily Unavailable"));
+            }
+        };
+        let service = services::distination(&service).await;
+        let addr: String = format!("{}:{}", service.ip, service.port);
+        // filter request
+        req = filter::layer(req).await;
+
+        if Method::CONNECT == req.method() {
+            self.connect(addr, req).await
+        } else {
+            let stream = match TcpStream::connect(addr.clone()).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!("connect error: {}", e);
+                    return Ok(bad_gateway(format!(
+                        "connect error: {} -> {}",
+                        e,
+                        addr.clone()
+                    )));
+                }
+            };
+            let io = TokioIo::new(stream);
+
+            let (mut sender, conn) = Builder::new()
+                .preserve_header_case(true)
+                .title_case_headers(true)
+                .handshake(io)
+                .await?;
+
+            tokio::task::spawn(async move {
+                if let Err(err) = conn.await {
+                    tracing::error!("Connection failed: {:?} -> {}", err, addr);
+                }
+            });
+
+            let resp = sender.send_request(req).await?;
+            Ok(resp.map(|b| b.boxed()))
         }
-    };
-    let service = services::distination(&service).await;
-    let addr: String = format!("{}:{}", service.ip, service.port);
-    // filter request
-    req = filter::layer(req).await;
+    }
 
-    if Method::CONNECT == req.method() {
+    // Create a TCP connection to host:port, build a tunnel between the connection and
+    // the upgraded connection
+    async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
+        // Connect to remote server
+        let mut server = TcpStream::connect(addr).await?;
+        let mut upgraded = TokioIo::new(upgraded);
+        // Proxying data
+        tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
+        Ok(())
+    }
+
+    async fn connect(
+        &self,
+        addr: String,
+        req: hyper::Request<BoxBody<Bytes, hyper::Error>>,
+    ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
         // Received an HTTP request like:
         // ```
         // CONNECT www.domain.com:443 HTTP/1.1
@@ -44,7 +103,7 @@ pub async fn inbound(
         tokio::task::spawn(async move {
             match hyper::upgrade::on(req).await {
                 Ok(upgraded) => {
-                    if let Err(e) = tunnel(upgraded, addr).await {
+                    if let Err(e) = Self::tunnel(upgraded, addr).await {
                         tracing::error!("server io error: {}", e);
                     };
                 }
@@ -52,46 +111,7 @@ pub async fn inbound(
             }
         });
         Ok(Response::new(empty()))
-    } else {
-        let stream = match TcpStream::connect(addr.clone()).await {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::error!("connect error: {}", e);
-                return Ok(bad_gateway(format!(
-                    "connect error: {} -> {}",
-                    e,
-                    addr.clone()
-                )));
-            }
-        };
-        let io = TokioIo::new(stream);
-
-        let (mut sender, conn) = Builder::new()
-            .preserve_header_case(true)
-            .title_case_headers(true)
-            .handshake(io)
-            .await?;
-
-        tokio::task::spawn(async move {
-            if let Err(err) = conn.await {
-                tracing::error!("Connection failed: {:?} -> {}", err, addr);
-            }
-        });
-
-        let resp = sender.send_request(req).await?;
-        Ok(resp.map(|b| b.boxed()))
     }
-}
-
-// Create a TCP connection to host:port, build a tunnel between the connection and
-// the upgraded connection
-async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
-    // Connect to remote server
-    let mut server = TcpStream::connect(addr).await?;
-    let mut upgraded = TokioIo::new(upgraded);
-    // Proxying data
-    tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -118,14 +138,15 @@ mod tests {
 
             tokio::task::spawn(async move {
                 loop {
-                    let (stream, _) = listener.accept().await.unwrap();
+                    let (stream, addr) = listener.accept().await.unwrap();
                     let io = io::tokiort::TokioIo::new(stream);
                     // println!("io: {:?}", io);
+                    let service = super::Inbound::new();
                     tokio::task::spawn(async move {
                         if let Err(err) = http1::Builder::new()
                             .preserve_header_case(true)
                             .title_case_headers(true)
-                            .serve_connection(io, service_fn(super::inbound))
+                            .serve_connection(io, service_fn(|req| service.inbound(req, addr)))
                             .with_upgrades()
                             .await
                         {
