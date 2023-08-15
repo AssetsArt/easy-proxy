@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-
 use super::{Algorithm, Destination, ServiceMeta};
 use crate::db::{builder::SqlBuilder, get_database, Record};
+use async_trait::async_trait;
+use std::io::Error;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RoundRobin {
@@ -12,7 +12,7 @@ pub struct RoundRobin {
 
 #[async_trait]
 impl Algorithm for RoundRobin {
-    async fn distination(svc: &ServiceMeta) -> Destination {
+    async fn distination(svc: &ServiceMeta) -> Result<Destination, Error> {
         // TODO: find destination by algorithm from memory
         let query_index = SqlBuilder::new()
             .table("destinations")
@@ -32,47 +32,63 @@ impl Algorithm for RoundRobin {
             }
             Err(_) => 0,
         };
-        let mut dest = svc.destination.get(index).unwrap().clone();
-        if !dest.status {
-            index += 1;
+
+        if let Some(dest) = svc.destination.get(index) {
+            let mut dest = dest;
+            if !dest.status {
+                index += 1;
+                if index >= svc.destination.len() {
+                    index = 0;
+                }
+                dest = match svc.destination.get(index) {
+                    Some(d) => d,
+                    None => {
+                        return Err(Error::new(
+                            std::io::ErrorKind::NotFound,
+                            "No destination found",
+                        ))
+                    }
+                };
+            }
             if index >= svc.destination.len() {
                 index = 0;
             }
-            dest = svc.destination.get(index).unwrap().clone();
-        }
-        index += 1;
-        if index >= svc.destination.len() {
-            index = 0;
-        }
-        if id.is_none() {
-            let _: Option<Record> = match get_database()
-                .await
-                .memory
-                .create("destinations")
-                .content(serde_json::json!({
-                    "next": index,
-                    "service_id": &svc.id,
-                }))
-                .await
-            {
-                Ok(r) => r,
-                Err(_) => None,
-            };
-        } else {
-            if let Err(a) = get_database()
-                .await
-                .memory
-                .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
-                .merge(serde_json::json!({
-                    "next": index,
-                }))
-                .await
-            {
-                println!("Save index error: {}", a);
+            index += 1;
+            if id.is_none() {
+                let _: Option<Record> = match get_database()
+                    .await
+                    .memory
+                    .create("destinations")
+                    .content(serde_json::json!({
+                        "next": index,
+                        "service_id": &svc.id,
+                    }))
+                    .await
+                {
+                    Ok(r) => r,
+                    Err(_) => None,
+                };
+            } else {
+                if let Err(a) = get_database()
+                    .await
+                    .memory
+                    .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
+                    .merge(serde_json::json!({
+                        "next": index,
+                    }))
+                    .await
+                {
+                    println!("Save index error: {}", a);
+                }
             }
+
+            return Ok(dest.clone());
         }
 
-        dest
+        Err(Error::new(
+            std::io::ErrorKind::NotFound,
+            "No destination found",
+        ))
     }
 }
 
@@ -110,10 +126,16 @@ mod tests {
                     ip: "0.0.0.3".to_string(),
                     port: 80,
                     protocol: "http".to_string(),
+                    status: false,
+                },
+                Destination {
+                    ip: "0.0.0.4".to_string(),
+                    port: 80,
+                    protocol: "http".to_string(),
                     status: true,
                 },
                 Destination {
-                    ip: "0.0.0.3".to_string(),
+                    ip: "0.0.0.5".to_string(),
                     port: 80,
                     protocol: "http".to_string(),
                     status: false,
@@ -179,14 +201,18 @@ mod tests {
             }
 
             let dest1 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest1.ip, dest[0].ip);
+            assert_eq!(dest1.unwrap().ip, dest[0].ip); // 0.0.0.1
+
             let dest2 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest2.ip, dest[1].ip);
+            assert_eq!(dest2.unwrap().ip, dest[1].ip);  // 0.0.0.2
+
+            // should skip dest[2] because it's status is false
             let dest3 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest3.ip, dest[2].ip);
-            // should skip dest[3] because it's status is false
+            assert_eq!(dest3.unwrap().ip, dest[3].ip);  // 0.0.0.4
+
             let dest4 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest4.ip, dest[0].ip);
+            assert_eq!(dest4.unwrap().ip, dest[0].ip); //  // 0.0.0.1
+
         });
     }
 }
