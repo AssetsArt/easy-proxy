@@ -1,8 +1,11 @@
 use std::net::SocketAddr;
 
-use crate::proxy::io::tokiort::TokioIo;
-use crate::proxy::response::{bad_gateway, empty, service_unavailable};
-use crate::proxy::{filter, services};
+use crate::proxy::{
+    filter,
+    io::tokiort::TokioIo,
+    response::{bad_gateway, empty, service_unavailable},
+    services::{self, Service},
+};
 use bytes::Bytes;
 use http::{Method, Response};
 use http_body_util::{combinators::BoxBody, BodyExt};
@@ -25,15 +28,14 @@ impl Inbound {
     ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
         let mut req = req.map(|b| b.boxed());
 
-        // route request
-        let service = match services::find(&req).await {
+        // find service
+        let (_service_mata, service) = match services::Services::distination(&req).await {
             Ok(s) => s,
             Err(e) => {
                 tracing::error!("service unavailable: {}", e);
                 return Ok(service_unavailable("503 Service Temporarily Unavailable"));
             }
         };
-        let service = services::distination(&service).await;
         let addr: String = format!("{}:{}", service.ip, service.port);
         // filter request
         req = filter::layer(req).await;
@@ -200,16 +202,19 @@ mod tests {
                     ip: "127.0.0.1".to_string(),
                     port: 3000,
                     protocol: "http".to_string(),
+                    status: true,
                 },
                 Destination {
                     ip: "127.0.0.1".to_string(),
                     port: 3000,
                     protocol: "http".to_string(),
+                    status: true,
                 },
                 Destination {
                     ip: "127.0.0.1".to_string(),
                     port: 3000,
                     protocol: "http".to_string(),
+                    status: true,
                 },
             ];
 
