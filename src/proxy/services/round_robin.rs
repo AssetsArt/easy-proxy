@@ -204,15 +204,14 @@ mod tests {
             assert_eq!(dest1.unwrap().ip, dest[0].ip); // 0.0.0.1
 
             let dest2 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest2.unwrap().ip, dest[1].ip);  // 0.0.0.2
+            assert_eq!(dest2.unwrap().ip, dest[1].ip); // 0.0.0.2
 
             // should skip dest[2] because it's status is false
             let dest3 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest3.unwrap().ip, dest[3].ip);  // 0.0.0.4
+            assert_eq!(dest3.unwrap().ip, dest[3].ip); // 0.0.0.4
 
             let dest4 = super::RoundRobin::distination(&svc).await;
             assert_eq!(dest4.unwrap().ip, dest[0].ip); //  // 0.0.0.1
-
         });
     }
 }

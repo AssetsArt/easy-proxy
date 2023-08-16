@@ -6,7 +6,10 @@ pub mod response;
 pub mod services;
 
 // use
-use self::{handler::inbound, io::tokiort::TokioIo};
+use self::{
+    handler::{inbound::Inbound, Handler},
+    io::tokiort::TokioIo,
+};
 use crate::config;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -44,11 +47,10 @@ impl Proxy {
 
     fn handler(&self, io: TokioIo<TcpStream>, addr: SocketAddr) -> Result<(), Box<dyn Error>> {
         tokio::task::spawn(async move {
-            let inbound_service = inbound::Inbound::new();
             if let Err(err) = http1::Builder::new()
                 .preserve_header_case(true)
                 .title_case_headers(true)
-                .serve_connection(io, service_fn(|req| inbound_service.inbound(req, addr)))
+                .serve_connection(io, service_fn(|req| Inbound::inbound(req, addr)))
                 .with_upgrades()
                 .await
             {

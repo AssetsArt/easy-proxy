@@ -1,28 +1,23 @@
-use std::net::SocketAddr;
-
+use super::{connect::connect, Handler};
 use crate::proxy::{
     filter,
     io::tokiort::TokioIo,
-    response::{bad_gateway, empty, service_unavailable},
+    response::{bad_gateway, service_unavailable},
     services::{self, Service},
 };
+use async_trait::async_trait;
 use bytes::Bytes;
-use http::{Method, Response};
+use http::Method;
 use http_body_util::{combinators::BoxBody, BodyExt};
-use hyper::{body::Incoming, client::conn::http1::Builder, upgrade::Upgraded};
+use hyper::{body::Incoming, client::conn::http1::Builder};
+use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
-pub struct Inbound {}
+pub struct Inbound;
 
-impl Inbound {
-    pub fn new() -> Self {
-        Inbound {}
-    }
-}
-
-impl Inbound {
-    pub async fn inbound(
-        &self,
+#[async_trait]
+impl Handler for Inbound {
+    async fn inbound(
         req: hyper::Request<Incoming>,
         _addr: SocketAddr,
     ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
@@ -41,7 +36,7 @@ impl Inbound {
         req = filter::layer(req).await;
 
         if Method::CONNECT == req.method() {
-            self.connect(addr, req).await
+            connect(addr, req).await
         } else {
             let stream = match TcpStream::connect(addr.clone()).await {
                 Ok(s) => s,
@@ -72,48 +67,6 @@ impl Inbound {
             Ok(resp.map(|b| b.boxed()))
         }
     }
-
-    // Create a TCP connection to host:port, build a tunnel between the connection and
-    // the upgraded connection
-    async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
-        // Connect to remote server
-        let mut server = TcpStream::connect(addr).await?;
-        let mut upgraded = TokioIo::new(upgraded);
-        // Proxying data
-        tokio::io::copy_bidirectional(&mut upgraded, &mut server).await?;
-        Ok(())
-    }
-
-    async fn connect(
-        &self,
-        addr: String,
-        req: hyper::Request<BoxBody<Bytes, hyper::Error>>,
-    ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
-        // Received an HTTP request like:
-        // ```
-        // CONNECT www.domain.com:443 HTTP/1.1
-        // Host: www.domain.com:443
-        // Proxy-Connection: Keep-Alive
-        // ```
-        //
-        // When HTTP method is CONNECT we should return an empty body
-        // then we can eventually upgrade the connection and talk a new protocol.
-        //
-        // Note: only after client received an empty body with STATUS_OK can the
-        // connection be upgraded, so we can't return a response inside
-        // `on_upgrade` future.
-        tokio::task::spawn(async move {
-            match hyper::upgrade::on(req).await {
-                Ok(upgraded) => {
-                    if let Err(e) = Self::tunnel(upgraded, addr).await {
-                        tracing::error!("server io error: {}", e);
-                    };
-                }
-                Err(e) => tracing::error!("upgrade error: {}", e),
-            }
-        });
-        Ok(Response::new(empty()))
-    }
 }
 
 #[cfg(test)]
@@ -126,6 +79,7 @@ mod tests {
     use crate::{
         db::{builder::SqlBuilder, get_database, Record},
         proxy::{
+            handler::{inbound::Inbound, Handler},
             io,
             response::full,
             services::{Destination, ServiceMeta},
@@ -143,12 +97,11 @@ mod tests {
                     let (stream, addr) = listener.accept().await.unwrap();
                     let io = io::tokiort::TokioIo::new(stream);
                     // println!("io: {:?}", io);
-                    let service = super::Inbound::new();
                     tokio::task::spawn(async move {
                         if let Err(err) = http1::Builder::new()
                             .preserve_header_case(true)
                             .title_case_headers(true)
-                            .serve_connection(io, service_fn(|req| service.inbound(req, addr)))
+                            .serve_connection(io, service_fn(|req| Inbound::inbound(req, addr)))
                             .with_upgrades()
                             .await
                         {
