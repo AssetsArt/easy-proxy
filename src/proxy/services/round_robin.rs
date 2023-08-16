@@ -74,7 +74,6 @@ impl Algorithm for RoundRobin {
                     }
                     return Ok(dest.clone());
                 }
-                loop_in += 1;
                 index += 1;
                 if index >= dest_len {
                     index = 0;
