@@ -79,6 +79,8 @@ impl Algorithm for RoundRobin {
                 if index >= dest_len {
                     index = 0;
                 }
+            } else {
+                loop_in += 1;
             }
             if loop_in >= dest_len {
                 break;
