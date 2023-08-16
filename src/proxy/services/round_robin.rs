@@ -33,8 +33,8 @@ impl Algorithm for RoundRobin {
             Err(_) => 0,
         };
 
-        let svc_len = svc.destination.len();
-        if svc_len == 0 {
+        let dest_len = svc.destination.len();
+        if dest_len == 0 {
             return Err(Error::new(
                 std::io::ErrorKind::NotFound,
                 "No destination found",
@@ -76,11 +76,11 @@ impl Algorithm for RoundRobin {
                 }
                 loop_in += 1;
                 index += 1;
-                if index >= svc_len {
+                if index >= dest_len {
                     index = 0;
                 }
             }
-            if loop_in >= svc_len {
+            if loop_in >= dest_len {
                 break;
             }
         }
@@ -214,7 +214,7 @@ mod tests {
 
             // should skip dest[2,3] because it's status is false
             let dest3 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest3.unwrap().ip, dest[4].ip); // 0.0.0.4
+            assert_eq!(dest3.unwrap().ip, dest[4].ip); // 0.0.0.5
 
             let dest5 = super::RoundRobin::distination(&svc).await;
             assert_eq!(dest5.unwrap().ip, dest[0].ip); //  // 0.0.0.1
