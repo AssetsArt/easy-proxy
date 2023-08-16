@@ -33,56 +33,56 @@ impl Algorithm for RoundRobin {
             Err(_) => 0,
         };
 
-        if let Some(dest) = svc.destination.get(index) {
-            let mut dest = dest;
-            if !dest.status {
+        let svc_len = svc.destination.len();
+        if svc_len == 0 {
+            return Err(Error::new(
+                std::io::ErrorKind::NotFound,
+                "No destination found",
+            ));
+        }
+        let mut loop_in = 0;
+        loop {
+            if let Some(dest) = svc.destination.get(index) {
+                if dest.status {
+                    index += 1;
+                    if id.is_none() {
+                        let _: Option<Record> = match get_database()
+                            .await
+                            .memory
+                            .create("destinations")
+                            .content(serde_json::json!({
+                                "next": index,
+                                "service_id": &svc.id,
+                            }))
+                            .await
+                        {
+                            Ok(r) => r,
+                            Err(_) => None,
+                        };
+                    } else {
+                        if let Err(a) = get_database()
+                            .await
+                            .memory
+                            .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
+                            .merge(serde_json::json!({
+                                "next": index,
+                            }))
+                            .await
+                        {
+                            println!("Save index error: {}", a);
+                        }
+                    }
+                    return Ok(dest.clone());
+                }
+                loop_in += 1;
                 index += 1;
-                if index >= svc.destination.len() {
+                if index >= svc_len {
                     index = 0;
                 }
-                dest = match svc.destination.get(index) {
-                    Some(d) => d,
-                    None => {
-                        return Err(Error::new(
-                            std::io::ErrorKind::NotFound,
-                            "No destination found",
-                        ))
-                    }
-                };
             }
-            if index >= svc.destination.len() {
-                index = 0;
+            if loop_in >= svc_len {
+                break;
             }
-            index += 1;
-            if id.is_none() {
-                let _: Option<Record> = match get_database()
-                    .await
-                    .memory
-                    .create("destinations")
-                    .content(serde_json::json!({
-                        "next": index,
-                        "service_id": &svc.id,
-                    }))
-                    .await
-                {
-                    Ok(r) => r,
-                    Err(_) => None,
-                };
-            } else {
-                if let Err(a) = get_database()
-                    .await
-                    .memory
-                    .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
-                    .merge(serde_json::json!({
-                        "next": index,
-                    }))
-                    .await
-                {
-                    println!("Save index error: {}", a);
-                }
-            }
-
-            return Ok(dest.clone());
         }
 
         Err(Error::new(
@@ -132,10 +132,16 @@ mod tests {
                     ip: "0.0.0.4".to_string(),
                     port: 80,
                     protocol: "http".to_string(),
-                    status: true,
+                    status: false,
                 },
                 Destination {
                     ip: "0.0.0.5".to_string(),
+                    port: 80,
+                    protocol: "http".to_string(),
+                    status: true,
+                },
+                Destination {
+                    ip: "0.0.0.6".to_string(),
                     port: 80,
                     protocol: "http".to_string(),
                     status: false,
@@ -206,12 +212,12 @@ mod tests {
             let dest2 = super::RoundRobin::distination(&svc).await;
             assert_eq!(dest2.unwrap().ip, dest[1].ip); // 0.0.0.2
 
-            // should skip dest[2] because it's status is false
+            // should skip dest[2,3] because it's status is false
             let dest3 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest3.unwrap().ip, dest[3].ip); // 0.0.0.4
+            assert_eq!(dest3.unwrap().ip, dest[4].ip); // 0.0.0.4
 
-            let dest4 = super::RoundRobin::distination(&svc).await;
-            assert_eq!(dest4.unwrap().ip, dest[0].ip); //  // 0.0.0.1
+            let dest5 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest5.unwrap().ip, dest[0].ip); //  // 0.0.0.1
         });
     }
 }
