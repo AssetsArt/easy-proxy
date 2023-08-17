@@ -45,8 +45,8 @@ pub struct Services {}
 async fn match_algorithm(svc: &ServiceMeta) -> Result<Destination, Error> {
     // TODO: find destination by algorithm from memory
     match svc.algorithm.as_str() {
-        "round-robin" => Ok(round_robin::RoundRobin::distination(&svc).await?),
-        _ => Ok(round_robin::RoundRobin::distination(&svc).await?),
+        "round-robin" => Ok(round_robin::RoundRobin::distination(svc).await?),
+        _ => Ok(round_robin::RoundRobin::distination(svc).await?),
     }
 }
 
@@ -56,14 +56,11 @@ impl Service for Services {
         req: &Request<BoxBody<Bytes, hyper::Error>>,
     ) -> Result<(ServiceMeta, Destination), Error> {
         // TODO: find service by proxy key from memory
-        if let Some(proxy_key) = match req.headers().get(PROXY_KEY) {
-            Some(v) => Some(v),
-            None => None,
-        } {
+        if let Some(proxy_key) = req.headers().get(PROXY_KEY) {
             let svc = SqlBuilder::new()
                 .table("services")
                 .select(vec!["*".to_string()])
-                .r#where("name", &proxy_key.to_str().unwrap_or(""));
+                .r#where("name", proxy_key.to_str().unwrap_or(""));
 
             if let Ok(mut r) = svc.mem_execute().await {
                 let svc: Option<ServiceMeta> = r.take(0).unwrap_or(None);
@@ -77,10 +74,7 @@ impl Service for Services {
         }
 
         // TODO: find service by host from memory
-        if let Some(proxy_host) = match req.headers().get("host") {
-            Some(v) => Some(v),
-            None => None,
-        } {
+        if let Some(proxy_host) = req.headers().get("host") {
             let svc = SqlBuilder::new()
                 .table("services")
                 .select(vec!["*".to_string()])

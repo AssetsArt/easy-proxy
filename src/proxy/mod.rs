@@ -27,6 +27,12 @@ impl Proxy {
     }
 }
 
+impl Default for Proxy {
+    fn default() -> Self {
+        Proxy::new()
+    }
+}
+
 // #[async_trait]
 impl Proxy {
     pub async fn listen(&self) -> Result<(), Box<dyn Error>> {

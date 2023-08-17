@@ -42,26 +42,18 @@ pub async fn get_database() -> &'static Database {
             let disk = Surreal::new::<RocksDb>("easy_proxy.db").await.unwrap();
             let memory = Surreal::new::<Mem>(()).await.unwrap();
 
-            if let Err(e) = disk
-                .use_ns(namespace.clone())
-                .use_db(database.clone())
-                .await
-            {
+            if let Err(e) = disk.use_ns(namespace).use_db(database).await {
                 panic!("disk error: {}", e);
             }
 
-            if let Err(e) = memory
-                .use_ns(namespace.clone())
-                .use_db(database.clone())
-                .await
-            {
+            if let Err(e) = memory.use_ns(namespace).use_db(database).await {
                 panic!("memory error: {}", e);
             }
             Database {
                 disk,
                 memory,
-                namespace: namespace.clone().to_string(),
-                database: database.clone().to_string(),
+                namespace: namespace.to_string(),
+                database: database.to_string(),
             }
         })
         .await as _

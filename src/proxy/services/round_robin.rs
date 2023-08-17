@@ -13,24 +13,16 @@ pub struct RoundRobin {
 #[async_trait]
 impl Algorithm for RoundRobin {
     async fn distination(svc: &ServiceMeta) -> Result<Destination, Error> {
-        // TODO: find destination by algorithm from memory
-        let query_index = SqlBuilder::new()
-            .table("destinations")
-            .select(vec!["*".to_string()])
-            .r#where("service_id", &svc.id.id.to_string());
-
-        let mut id: Option<surrealdb::sql::Thing> = None;
-        let mut index = match query_index.mem_execute().await {
-            Ok(mut r) => {
-                let index: Option<RoundRobin> = r.take(0).unwrap_or(None);
-                if let Some(index) = index {
-                    id = Some(index.id);
-                    index.next
-                } else {
-                    0
-                }
-            }
-            Err(_) => 0,
+        let round_robin = match query_index(svc).await {
+            Ok(Some(index)) => index,
+            _ => RoundRobin {
+                id: surrealdb::sql::Thing {
+                    tb: "destinations".to_string(),
+                    id: surrealdb::sql::Id::String("".to_string()),
+                },
+                next: 0,
+                service_id: svc.id.id.to_string(),
+            },
         };
 
         let dest_len = svc.destination.len();
@@ -40,41 +32,16 @@ impl Algorithm for RoundRobin {
                 "No destination found",
             ));
         }
+
+        let mut index = round_robin.next;
         let mut loop_in = 0;
         loop {
             if let Some(dest) = svc.destination.get(index) {
+                index += 1;
                 if dest.status {
-                    index += 1;
-                    if id.is_none() {
-                        let _: Option<Record> = match get_database()
-                            .await
-                            .memory
-                            .create("destinations")
-                            .content(serde_json::json!({
-                                "next": index,
-                                "service_id": &svc.id,
-                            }))
-                            .await
-                        {
-                            Ok(r) => r,
-                            Err(_) => None,
-                        };
-                    } else {
-                        if let Err(a) = get_database()
-                            .await
-                            .memory
-                            .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
-                            .merge(serde_json::json!({
-                                "next": index,
-                            }))
-                            .await
-                        {
-                            println!("Save index error: {}", a);
-                        }
-                    }
+                    update_index(svc, round_robin, index).await;
                     return Ok(dest.clone());
                 }
-                index += 1;
                 if index >= dest_len {
                     index = 0;
                 }
@@ -90,6 +57,46 @@ impl Algorithm for RoundRobin {
             std::io::ErrorKind::NotFound,
             "No destination found",
         ))
+    }
+}
+
+async fn query_index(svc: &ServiceMeta) -> Result<Option<RoundRobin>, Error> {
+    let query_index = SqlBuilder::new()
+        .table("destinations")
+        .select(vec!["*".to_string()])
+        .r#where("service_id", &svc.id.id.to_string());
+
+    match query_index.mem_execute().await {
+        Ok(mut r) => Ok(r.take(0).unwrap_or(None)),
+        Err(_) => Err(Error::new(std::io::ErrorKind::Other, "Query error")),
+    }
+}
+
+async fn update_index(svc: &ServiceMeta, round_robin: RoundRobin, index: usize) {
+    if round_robin.id.id == surrealdb::sql::Id::String("".to_string()) {
+        let _: Option<Record> = match get_database()
+            .await
+            .memory
+            .create("destinations")
+            .content(serde_json::json!({
+                "next": index,
+                "service_id": &svc.id,
+            }))
+            .await
+        {
+            Ok(r) => r,
+            Err(_) => None,
+        };
+    } else if let Err(a) = get_database()
+        .await
+        .memory
+        .update::<Option<RoundRobin>>(("destinations", round_robin.id))
+        .merge(serde_json::json!({
+            "next": index,
+        }))
+        .await
+    {
+        println!("Save index error: {}", a);
     }
 }
 
