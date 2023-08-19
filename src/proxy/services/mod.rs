@@ -30,11 +30,17 @@ pub struct Destination {
 
 #[async_trait]
 pub trait Algorithm {
+    // find destination by algorithm
     async fn distination(svc: &ServiceMeta) -> Result<Destination, Error>;
+    // clear algorithm state
+    fn clear_state();
+    // reset algorithm state for service
+    fn reset_state(svc: &ServiceMeta);
 }
 
 #[async_trait]
 pub trait Service {
+    // find service by proxy key or host
     async fn distination(
         req: &Request<BoxBody<Bytes, hyper::Error>>,
     ) -> Result<(ServiceMeta, Destination), Error>;

@@ -56,13 +56,5 @@ pub async fn get_database() -> &'static Database {
                 database: database.to_string(),
             }
         })
-        .await as _
-}
-
-pub async fn load_to_memory() {
-    unimplemented!("load_to_memory")
-}
-
-pub async fn memory_size() -> usize {
-    unimplemented!("memory_size")
+        .await
 }

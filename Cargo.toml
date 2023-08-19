@@ -27,6 +27,7 @@ pin-project-lite = "0.2.11"
 http-body-util = "0.1.0-rc.3"
 futures = "0.3.28"
 async-trait = "0.1.73"
+futures-util = "0.3.28"
 
 [dev-dependencies]
 ureq = "2.7.1"

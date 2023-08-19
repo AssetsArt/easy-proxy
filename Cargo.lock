@@ -590,6 +590,7 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
+ "futures-util",
  "geo 0.26.0",
  "http",
  "http-body-util",

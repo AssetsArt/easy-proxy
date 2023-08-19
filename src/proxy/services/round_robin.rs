@@ -1,28 +1,39 @@
 use super::{Algorithm, Destination, ServiceMeta};
-use crate::db::{builder::SqlBuilder, get_database, Record};
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::io::Error;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Default, Clone)]
 pub struct RoundRobin {
-    id: surrealdb::sql::Thing,
     next: usize,
-    service_id: String,
 }
+
+static ROUND_ROBIN_STATE: AtomicPtr<HashMap<String, RoundRobin>> =
+    AtomicPtr::new(std::ptr::null_mut());
 
 #[async_trait]
 impl Algorithm for RoundRobin {
+    fn clear_state() {
+        let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
+        if !state.is_null() {
+            unsafe { Box::from_raw(state) };
+            ROUND_ROBIN_STATE.store(std::ptr::null_mut(), Ordering::Relaxed);
+        }
+    }
+
+    fn reset_state(svc: &ServiceMeta) {
+        let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
+        if !state.is_null() {
+            let state = unsafe { &mut *state };
+            state.remove(&svc.id.id.to_string());
+        }
+    }
+
     async fn distination(svc: &ServiceMeta) -> Result<Destination, Error> {
-        let round_robin = match query_index(svc).await {
-            Ok(Some(index)) => index,
-            _ => RoundRobin {
-                id: surrealdb::sql::Thing {
-                    tb: "destinations".to_string(),
-                    id: surrealdb::sql::Id::String("".to_string()),
-                },
-                next: 0,
-                service_id: svc.id.id.to_string(),
-            },
+        let round_robin = match query_index(svc) {
+            Ok(index) => index,
+            _ => RoundRobin::default(),
         };
 
         let dest_len = svc.destination.len();
@@ -39,7 +50,7 @@ impl Algorithm for RoundRobin {
             if let Some(dest) = svc.destination.get(index) {
                 index += 1;
                 if dest.status {
-                    update_index(svc, round_robin, index).await;
+                    update_index(svc, index);
                     return Ok(dest.clone());
                 }
                 if index >= dest_len {
@@ -60,52 +71,40 @@ impl Algorithm for RoundRobin {
     }
 }
 
-async fn query_index(svc: &ServiceMeta) -> Result<Option<RoundRobin>, Error> {
-    let query_index = SqlBuilder::new()
-        .table("destinations")
-        .select(vec!["*".to_string()])
-        .r#where("service_id", &svc.id.id.to_string());
+fn query_index(svc: &ServiceMeta) -> Result<RoundRobin, Error> {
+    let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
+    if state.is_null() {
+        let mut new_state = HashMap::new();
+        let rs = RoundRobin::default();
+        new_state.insert(svc.id.id.to_string(), rs.clone());
 
-    match query_index.mem_execute().await {
-        Ok(mut r) => Ok(r.take(0).unwrap_or(None)),
-        Err(_) => Err(Error::new(std::io::ErrorKind::Other, "Query error")),
+        let new_state_ptr = Box::into_raw(Box::new(new_state));
+
+        // Make sure to use `Relaxed` ordering when initializing the atomic pointer
+        ROUND_ROBIN_STATE.store(new_state_ptr, Ordering::Relaxed);
+
+        Ok(rs)
+    } else {
+        let state = unsafe { &mut *state };
+        if let Some(r) = state.get(&svc.id.id.to_string()) {
+            Ok(r.clone())
+        } else {
+            Ok(RoundRobin::default())
+        }
     }
 }
 
-async fn update_index(svc: &ServiceMeta, round_robin: RoundRobin, index: usize) {
-    if round_robin.id.id == surrealdb::sql::Id::String("".to_string()) {
-        let _: Option<Record> = match get_database()
-            .await
-            .memory
-            .create("destinations")
-            .content(serde_json::json!({
-                "next": index,
-                "service_id": &svc.id,
-            }))
-            .await
-        {
-            Ok(r) => r,
-            Err(_) => None,
-        };
-    } else if let Err(a) = get_database()
-        .await
-        .memory
-        .update::<Option<RoundRobin>>(("destinations", round_robin.id))
-        .merge(serde_json::json!({
-            "next": index,
-        }))
-        .await
-    {
-        println!("Save index error: {}", a);
+fn update_index(svc: &ServiceMeta, index: usize) {
+    let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
+    if !state.is_null() {
+        let state = unsafe { &mut *state };
+        state.insert(svc.id.id.to_string(), RoundRobin { next: index });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        db::{builder::SqlBuilder, get_database, Record},
-        proxy::services::{Algorithm, Destination, ServiceMeta},
-    };
+    use crate::proxy::services::{Algorithm, Destination, ServiceMeta};
 
     #[test]
     fn test_round_robin_dest() {
@@ -166,54 +165,40 @@ mod tests {
                 name: "test".to_string(),
                 host: "test.com".to_string(),
             };
+            let dest1 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest1.unwrap().ip, dest[0].ip); // 0.0.0.1
 
-            let _: Option<Record> = match get_database()
-                .await
-                .memory
-                .create("destinations")
-                .content(serde_json::json!({
-                    "next": 0,
-                    "service_id": &svc.id.id.to_string(),
-                }))
-                .await
-            {
-                Ok(r) => r,
-                Err(_) => None,
-            };
+            let dest2 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest2.unwrap().ip, dest[1].ip); // 0.0.0.2
 
-            let query_index = SqlBuilder::new()
-                .table("destinations")
-                .select(vec!["*".to_string()])
-                .r#where("service_id", &svc.id.id.to_string());
+            // should skip dest[2,3] because it's status is false
+            let dest3 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest3.unwrap().ip, dest[4].ip); // 0.0.0.5
 
-            let mut id: Option<surrealdb::sql::Thing> = None;
-            let _ = match query_index.mem_execute().await {
-                Ok(mut r) => {
-                    let index: Option<RoundRobin> = r.take(0).unwrap_or(None);
-                    if let Some(index) = index {
-                        id = Some(index.id);
-                        index.next
-                    } else {
-                        0
-                    }
-                }
-                Err(_) => 0,
-            };
+            let dest5 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest5.unwrap().ip, dest[0].ip); //  // 0.0.0.1
 
-            if id.is_some() {
-                if let Err(a) = get_database()
-                    .await
-                    .memory
-                    .update::<Option<RoundRobin>>(("destinations", id.unwrap()))
-                    .merge(serde_json::json!({
-                        "next": 0,
-                    }))
-                    .await
-                {
-                    println!("Save index error: {}", a);
-                }
-            }
+            // last index is 1
+            // reset state
+            super::RoundRobin::clear_state();
+            // last should be 0
+            let dest1 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest1.unwrap().ip, dest[0].ip); // 0.0.0.1
 
+            let dest2 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest2.unwrap().ip, dest[1].ip); // 0.0.0.2
+
+            // should skip dest[2,3] because it's status is false
+            let dest3 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest3.unwrap().ip, dest[4].ip); // 0.0.0.5
+
+            let dest5 = super::RoundRobin::distination(&svc).await;
+            assert_eq!(dest5.unwrap().ip, dest[0].ip); //  // 0.0.0.1
+
+            // last index is 1
+            // reset state by service
+            super::RoundRobin::reset_state(&svc);
+            // last should be 0
             let dest1 = super::RoundRobin::distination(&svc).await;
             assert_eq!(dest1.unwrap().ip, dest[0].ip); // 0.0.0.1
 
