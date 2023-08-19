@@ -1,34 +1,163 @@
-# Easy Proxy
+# Easy Proxy Documentation
 
-A simple proxy server.
+**Easy Proxy**, a simple proxy server designed to provide essential features for network traffic management and proxying.
 
-## Features should be supported
-- [] Load Balancing
-- [] Duplicate forwarding
-- [] SSL Termination
-- [] Caching
-- [] Content Compression
-- [] Filtering
-- [] Health Checking
-- [] Logging and Monitoring
+## Features
+
+Easy Proxy supports the following features:
+
+- [ ] Load Balancing
+  - algorithm
+  - [x] round_robin
+  - [ ] least_connection
+  - [ ] ip_hash
+- [ ] SSL Termination
+- [ ] Caching
+- [ ] Filtering
+- [ ] Health Checking
+- [ ] Logging and Monitoring
 - Protocol Support
   - [x] HTTP
-  - [] HTTPS
-- [] Web UI
+  - [ ] HTTPS
 
 ## Development
-- ### Database
-  - [Surrealdb](https://surrealdb.com/docs/integration/sdks/rust)
 
-- ### Jwt
-  ```sh
-  ssh-keygen -t rsa -b 4096 -m PEM -E SHA512 -f cert/jwt.pem
-  ```
+To contribute or use Easy Proxy, follow these steps:
 
-## Test
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/Aitthi/easy-proxy.git
+   ```
+2. Change to the project directory:
+   ```sh
+   cd easy-proxy
+   ```
+3. Generate an RSA certificate for JWT:
+   ```sh
+   ssh-keygen -t rsa -b 4096 -m PEM -E SHA512 -f cert/jwt.pem
+   ```
+4. Run the application:
+   ```sh
+   cargo run
+   ```
+   Or, to automatically rebuild and restart:
+   ```sh
+   cargo watch -q -c -x 'run'
+   ```
+
+## API Documentation
+
+The API documentation outlines the endpoints and how to interact with Easy Proxy.
+
+**Base URL:** http://localhost:3100
+
+### Endpoint: POST `/api/install`
+
+This endpoint performs the initial setup of the application, which includes creating an initial administrative user account.
+
+#### Request Example
+
 ```sh
-curl --location 'https://domain.com/ipinfo' \
---header 'x-proxy-ip: 10.42.2.104' \
---header 'x-proxy-port: 8000' \
---header 'x-proxy-authen: my-auth-key'
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "P@ssw0rd"}' \
+  http://localhost:3100/api/install
+```
+
+---
+
+### Endpoint: GET `/api/is_install`
+
+This endpoint checks if the application has been installed.
+
+#### Request Example
+
+```sh
+curl -X GET http://localhost:3100/api/is_install
+```
+
+#### Response Example
+
+```json
+{
+  "is_install": true
+}
+```
+
+---
+
+### Endpoint: POST `/api/admin/authen`
+
+This endpoint is used to authenticate an administrative user.
+
+#### Request Example
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "P@ssw0rd"}' \
+  http://localhost:3100/api/admin/authen
+```
+
+#### Response Example
+
+```json
+{
+  "user": {
+    "id": "admin:uaz3q3",
+    "name": "Administrator",
+    "username": "admin",
+    "role": "super_admin"
+  },
+  "jwt": {
+    "type": "Bearer",
+    "expires_in": 1692471676,
+    "token": "eyJhbGciO...QfX0"
+  }
+}
+```
+
+---
+### Endpoint: GET `/api/services/add`
+This endpoint is used to add a new service.
+#### Request Example
+```json
+{
+  "name": "service1", // Unique allowed characters: a-z, 0-9, -, _
+  "host": "myhost.com",
+  "algorithm": "round_robin",
+  "destination": [
+    {
+      "ip": "127.0.0.1",
+      "port": 8080,
+      "protocol": "http",
+      "status": true
+    },
+    {
+      "ip": "127.0.0.2",
+      "port": 8080,
+      "protocol": "http",
+      "status": true
+    }
+  ]
+}
+```
+---
+### Endpoint: GET `/api/services/update/:id`
+This endpoint is used to update a service.
+#### Request Example
+```json
+{
+  "name": "service1", // Unique allowed characters: a-z, 0-9, -, _
+  "host": "myhost.com",
+  "algorithm": "round_robin",
+  "destination": [
+    {
+      "ip": "127.0.0.1",
+      "port": 8080,
+      "protocol": "http",
+      "status": true
+    }
+  ]
+}
 ```

@@ -15,7 +15,7 @@ impl Algorithm for RoundRobin {
     fn clear_state() {
         let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
         if !state.is_null() {
-            unsafe { Box::from_raw(state) };
+            unsafe { let _ = Box::from_raw(state); };
             ROUND_ROBIN_STATE.store(std::ptr::null_mut(), Ordering::Relaxed);
         }
     }
