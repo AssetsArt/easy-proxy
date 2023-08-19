@@ -86,11 +86,44 @@ mod tests {
         },
     };
 
+    async fn build_dest_svc(port: u16) {
+        let listener_dest = TcpListener::bind(
+            format!("127.0.0.1:{}", port)
+                .parse::<std::net::SocketAddr>()
+                .unwrap()
+        ).await.unwrap();
+        pub async fn response(
+            _req: hyper::Request<Incoming>,
+            port: u16,
+        ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error>
+        {
+            let res_data = format!("hello {}", port);
+            let mut resp = hyper::Response::new(full(res_data));
+            *resp.status_mut() = http::StatusCode::OK;
+            Ok(resp)
+        }
+        loop {
+            let (stream, _) = listener_dest.accept().await.unwrap();
+            let io = io::tokiort::TokioIo::new(stream);
+            // println!("io: {:?}", io);
+            tokio::task::spawn(async move {
+                if let Err(err) = http1::Builder::new()
+                    .preserve_header_case(true)
+                    .title_case_headers(true)
+                    .serve_connection(io, service_fn(|req| response(req, port)))
+                    .with_upgrades()
+                    .await
+                {
+                    tracing::error!("Failed to serve connection: {:?}", err);
+                }
+            });
+        }
+    }
+
     #[test]
     fn test_inbound() {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let listener = TcpListener::bind("127.0.0.1:8100").await.unwrap();
-            let listener_dest = TcpListener::bind("127.0.0.1:3000").await.unwrap();
 
             tokio::task::spawn(async move {
                 loop {
@@ -111,32 +144,17 @@ mod tests {
                 }
             });
 
+            // create destination service
             tokio::task::spawn(async move {
-                pub async fn response(
-                    _req: hyper::Request<Incoming>,
-                ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error>
-                {
-                    let mut resp = hyper::Response::new(full("hello"));
-                    *resp.status_mut() = http::StatusCode::OK;
-                    Ok(resp)
-                }
-                loop {
-                    let (stream, _) = listener_dest.accept().await.unwrap();
-                    let io = io::tokiort::TokioIo::new(stream);
-                    // println!("io: {:?}", io);
-                    tokio::task::spawn(async move {
-                        if let Err(err) = http1::Builder::new()
-                            .preserve_header_case(true)
-                            .title_case_headers(true)
-                            .serve_connection(io, service_fn(response))
-                            .with_upgrades()
-                            .await
-                        {
-                            tracing::error!("Failed to serve connection: {:?}", err);
-                        }
-                    });
-                }
+                build_dest_svc(3000).await;
             });
+            tokio::task::spawn(async move {
+                build_dest_svc(3001).await;
+            });
+            tokio::task::spawn(async move {
+                build_dest_svc(3002).await;
+            });
+            // end create destination service
 
             let req = ureq::get("http://127.0.0.1:8100");
             let req = req.set("host", "myhost.com");
@@ -159,13 +177,13 @@ mod tests {
                 },
                 Destination {
                     ip: "127.0.0.1".to_string(),
-                    port: 3000,
+                    port: 3001,
                     protocol: "http".to_string(),
                     status: true,
                 },
                 Destination {
                     ip: "127.0.0.1".to_string(),
-                    port: 3000,
+                    port: 3002,
                     protocol: "http".to_string(),
                     status: true,
                 },
@@ -199,11 +217,25 @@ mod tests {
             } else {
                 assert_eq!(false, true);
             }
+
+            // call 3000
             let req = ureq::get("http://127.0.0.1:8100");
             let req = req.set("host", "myhost.com");
             let res = req.call().unwrap();
             let res_data = res.into_string().unwrap();
-            assert_eq!(res_data, "hello");
+            assert_eq!(res_data, "hello 3000");
+            // call 3001
+            let req = ureq::get("http://127.0.0.1:8100");
+            let req = req.set("host", "myhost.com");
+            let res = req.call().unwrap();
+            let res_data = res.into_string().unwrap();
+            assert_eq!(res_data, "hello 3001");
+            // call 3002
+            let req = ureq::get("http://127.0.0.1:8100");
+            let req = req.set("host", "myhost.com");
+            let res = req.call().unwrap();
+            let res_data = res.into_string().unwrap();
+            assert_eq!(res_data, "hello 3002");
         });
     }
 }
