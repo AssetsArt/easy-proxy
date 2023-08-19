@@ -118,7 +118,7 @@ curl -X POST \
 ```
 
 ---
-### Endpoint: GET `/api/services/add`
+### Endpoint: POST `/api/services/add`
 This endpoint is used to add a new service.
 #### Request Example
 ```json
@@ -143,7 +143,7 @@ This endpoint is used to add a new service.
 }
 ```
 ---
-### Endpoint: GET `/api/services/update/:id`
+### Endpoint: POST `/api/services/update/:id`
 This endpoint is used to update a service.
 #### Request Example
 ```json
