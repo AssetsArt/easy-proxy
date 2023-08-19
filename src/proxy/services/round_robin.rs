@@ -1,16 +1,14 @@
 use super::{Algorithm, Destination, ServiceMeta};
+use crate::proxy::state::ROUND_ROBIN_STATE;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::io::Error;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::Ordering;
 
 #[derive(Default, Clone)]
 pub struct RoundRobin {
     next: usize,
 }
-
-static ROUND_ROBIN_STATE: AtomicPtr<HashMap<String, RoundRobin>> =
-    AtomicPtr::new(std::ptr::null_mut());
 
 #[async_trait]
 impl Algorithm for RoundRobin {

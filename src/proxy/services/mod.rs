@@ -1,5 +1,5 @@
 // mod
-mod round_robin;
+pub mod round_robin;
 
 use crate::db::builder::SqlBuilder;
 use async_trait::async_trait;

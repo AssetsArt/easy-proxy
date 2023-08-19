@@ -4,6 +4,7 @@ mod handler;
 mod io;
 pub mod response;
 pub mod services;
+pub mod state;
 
 // use
 use self::{
