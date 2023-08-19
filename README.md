@@ -6,7 +6,7 @@
 
 Easy Proxy supports the following features:
 
-- [ ] Load Balancing
+- [x] Load Balancing
   - Algorithm
   - [x] round_robin
   - [ ] least_connection
