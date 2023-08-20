@@ -1,9 +1,11 @@
 use super::{connect::connect, Handler};
-use crate::proxy::{
-    filter,
+use crate::{
     io::tokiort::TokioIo,
+    proxy::{
+        filter,
+        services::{self, Service},
+    },
     response::{bad_gateway, service_unavailable},
-    services::{self, Service},
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -78,25 +80,26 @@ mod tests {
 
     use crate::{
         db::{builder::SqlBuilder, get_database, Record},
+        io::tokiort::TokioIo,
         proxy::{
             handler::{inbound::Inbound, Handler},
-            io,
-            response::full,
             services::{Destination, ServiceMeta},
         },
+        response::full,
     };
 
     async fn build_dest_svc(port: u16) {
         let listener_dest = TcpListener::bind(
             format!("127.0.0.1:{}", port)
                 .parse::<std::net::SocketAddr>()
-                .unwrap()
-        ).await.unwrap();
+                .unwrap(),
+        )
+        .await
+        .unwrap();
         pub async fn response(
             _req: hyper::Request<Incoming>,
             port: u16,
-        ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error>
-        {
+        ) -> Result<hyper::Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
             let res_data = format!("hello {}", port);
             let mut resp = hyper::Response::new(full(res_data));
             *resp.status_mut() = http::StatusCode::OK;
@@ -104,7 +107,7 @@ mod tests {
         }
         loop {
             let (stream, _) = listener_dest.accept().await.unwrap();
-            let io = io::tokiort::TokioIo::new(stream);
+            let io = TokioIo::new(stream);
             // println!("io: {:?}", io);
             tokio::task::spawn(async move {
                 if let Err(err) = http1::Builder::new()
@@ -128,7 +131,7 @@ mod tests {
             tokio::task::spawn(async move {
                 loop {
                     let (stream, addr) = listener.accept().await.unwrap();
-                    let io = io::tokiort::TokioIo::new(stream);
+                    let io = TokioIo::new(stream);
                     // println!("io: {:?}", io);
                     tokio::task::spawn(async move {
                         if let Err(err) = http1::Builder::new()

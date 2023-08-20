@@ -1,4 +1,4 @@
-use crate::{app::utils::reponse_json, db::builder::SqlBuilder, jwt};
+use crate::{api::utils::reponse_json, db::builder::SqlBuilder, jwt};
 use axum::{body::Body, http::StatusCode, response::Response, Json};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -83,7 +83,7 @@ pub async fn authen(mut input: Json<Value>) -> Response<Body> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        app::utils::body_to_bytes,
+        api::utils::body_to_bytes,
         db::{get_database, Record},
     };
 

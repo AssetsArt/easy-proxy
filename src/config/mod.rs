@@ -4,7 +4,6 @@ pub mod cli;
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub authen: Option<String>,
     pub host: String,
     pub api_host: String,
     pub jwt_cert: String,
@@ -43,7 +42,6 @@ pub fn global_config() -> &'static Config {
         let config = Config {
             host: cli_config.host.unwrap_or("0.0.0.0:8100".to_string()),
             api_host: cli_config.api_host.unwrap_or("0.0.0.0:3100".to_string()),
-            authen: cli_config.authen,
             jwt_cert: cert,
         };
         unsafe {

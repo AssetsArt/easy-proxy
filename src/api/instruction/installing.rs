@@ -1,5 +1,5 @@
 use crate::{
-    app::utils::reponse_json,
+    api::utils::reponse_json,
     db::{get_database, model, Record},
 };
 use axum::{body::Body, http::StatusCode, response::Response, Json};
@@ -130,7 +130,7 @@ pub async fn is_install() -> Response<Body> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        app::utils::body_to_bytes,
+        api::utils::body_to_bytes,
         db::{get_database, Record},
     };
 

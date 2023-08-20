@@ -12,23 +12,31 @@ pub struct RoundRobin {
 
 #[async_trait]
 impl Algorithm for RoundRobin {
+    // Clear the state of round-robin for all services
     fn clear_state() {
         let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
         if !state.is_null() {
-            unsafe { Box::from_raw(state) };
-            ROUND_ROBIN_STATE.store(std::ptr::null_mut(), Ordering::Relaxed);
+            // SAFETY: The state map is initialized, clear the state of all services
+            let state = unsafe { &mut *state };
+            state.clear();
         }
     }
 
+    // Reset the state of round-robin for a specific service
     fn reset_state(svc: &ServiceMeta) {
         let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
         if !state.is_null() {
+            // SAFETY: The state map is initialized, remove the state of the given service
             let state = unsafe { &mut *state };
-            state.remove(&svc.id.id.to_string());
+            if state.remove(&svc.id.id.to_string()).is_some() {
+                // delete the state of the given service
+            }
         }
     }
 
+    // Calculate the next destination using round-robin algorithm
     async fn distination(svc: &ServiceMeta) -> Result<Destination, Error> {
+        // Retrieve the round-robin state for this service
         let round_robin = match query_index(svc) {
             Ok(index) => index,
             _ => RoundRobin::default(),
@@ -46,13 +54,10 @@ impl Algorithm for RoundRobin {
         let mut loop_in = 0;
         loop {
             if let Some(dest) = svc.destination.get(index) {
-                index += 1;
+                index = (index + 1) % dest_len;
                 if dest.status {
                     update_index(svc, index);
                     return Ok(dest.clone());
-                }
-                if index >= dest_len {
-                    index = 0;
                 }
             } else {
                 loop_in += 1;
@@ -69,32 +74,41 @@ impl Algorithm for RoundRobin {
     }
 }
 
+// Query the round-robin state for a service
 fn query_index(svc: &ServiceMeta) -> Result<RoundRobin, Error> {
+    // Load the atomic pointer to the state map
     let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
     if state.is_null() {
+        // If the state map is not initialized, create a new one and initialize it with the default round-robin state
         let mut new_state = HashMap::new();
         let rs = RoundRobin::default();
         new_state.insert(svc.id.id.to_string(), rs.clone());
 
+        // Convert the new state map into a raw pointer
         let new_state_ptr = Box::into_raw(Box::new(new_state));
 
-        // Make sure to use `Relaxed` ordering when initializing the atomic pointer
+        // Set the atomic pointer to the new state map
         ROUND_ROBIN_STATE.store(new_state_ptr, Ordering::Relaxed);
 
         Ok(rs)
     } else {
+        // SAFETY: The state map is already initialized, retrieve the round-robin state for the given service
         let state = unsafe { &mut *state };
         if let Some(r) = state.get(&svc.id.id.to_string()) {
             Ok(r.clone())
         } else {
+            // If no round-robin state exists for the service, use the default state
             Ok(RoundRobin::default())
         }
     }
 }
 
+// Update the round-robin state for a service
 fn update_index(svc: &ServiceMeta, index: usize) {
+    // Load the atomic pointer to the state map
     let state = ROUND_ROBIN_STATE.load(Ordering::Relaxed);
     if !state.is_null() {
+        // SAFETY: The state map is initialized, update the round-robin state for the given service
         let state = unsafe { &mut *state };
         state.insert(svc.id.id.to_string(), RoundRobin { next: index });
     }

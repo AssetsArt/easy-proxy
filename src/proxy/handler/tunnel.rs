@@ -1,4 +1,4 @@
-use crate::proxy::io::tokiort::TokioIo;
+use crate::io::tokiort::TokioIo;
 use hyper::upgrade::Upgraded;
 use tokio::net::TcpStream;
 

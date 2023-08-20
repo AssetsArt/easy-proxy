@@ -1,5 +1,5 @@
 use super::tunnel::tunnel;
-use crate::proxy::response::empty;
+use crate::response::empty;
 use bytes::Bytes;
 use http::Response;
 use http_body_util::combinators::BoxBody;

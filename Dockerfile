@@ -5,18 +5,16 @@ WORKDIR /app
 # copy app src
 COPY . .
 # build app
-RUN cargo build --release
+RUN RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 # create release image
 FROM gcr.io/distroless/cc:nonroot
 
 ARG timezone=Asia/Bangkok
-ARG e_auth="my-auth-key"
 
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 ENV TZ $timezone
-ENV E_AUTH $e_auth
 
 WORKDIR /app
 # copy app release
@@ -26,4 +24,4 @@ COPY --from=builder /app/target/release/easy-proxy ./
 EXPOSE 8100
 
 # default run entrypoint
-CMD ["./easy-proxy", "--authen", "${E_AUTH}"]
+CMD ["./easy-proxy"]
