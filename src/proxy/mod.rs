@@ -1,17 +1,12 @@
 // // mod
 mod filter;
 mod handler;
-mod io;
-pub mod response;
 pub mod services;
 pub mod state;
 
 // use
-use self::{
-    handler::{inbound::Inbound, Handler},
-    io::tokiort::TokioIo,
-};
-use crate::config;
+use self::handler::{inbound::Inbound, Handler};
+use crate::{config, io::tokiort::TokioIo};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use std::{error::Error, net::SocketAddr};
@@ -34,7 +29,6 @@ impl Default for Proxy {
     }
 }
 
-// #[async_trait]
 impl Proxy {
     pub async fn listen(&self) -> Result<(), Box<dyn Error>> {
         let server_addr: SocketAddr = self.host.parse()?;
@@ -48,7 +42,7 @@ impl Proxy {
     async fn accept(&self, listener: TcpListener) -> Result<(), Box<dyn Error>> {
         loop {
             let (stream, addr) = listener.accept().await?;
-            self.handler(io::tokiort::TokioIo::new(stream), addr)?;
+            self.handler(TokioIo::new(stream), addr)?;
         }
     }
 
