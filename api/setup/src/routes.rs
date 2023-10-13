@@ -1,4 +1,4 @@
-use common::axum::{routing::post, Router};
+use common::axum::{routing::{post,get}, Router};
 
 // internal
 use crate::resource;
@@ -17,7 +17,9 @@ impl Routes {
     pub fn new() -> Self {
         let r = Router::new().nest(
             "/setup",
-            Router::new().route("/installing", post(resource::installing)),
+            Router::new()
+                .route("/installing", post(resource::installing))
+                .route("/is_installing", get(resource::is_installing))
         );
 
         Self { r }

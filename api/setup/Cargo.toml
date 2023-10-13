@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../../package/common" }
+database = { path = "../../package/database" }
 serde = { version="1", features = ["derive"] }

@@ -14,13 +14,16 @@ pub const BASE_PATH: &str = "/api/setup";
         description = "An API to manage setup"
     ),
     paths(
-        resource::installing
+        resource::installing,
+        resource::is_installing
     ),
     modifiers(&ServerBase),
     components(
         schemas(
-            resource::LoginResponse,
-            resource::LoginInput
+            resource::InstallingResponse,
+            resource::InstallingBody,
+            resource::IsInstallingResponse,
+            resource::IsInstallingResponseData
         )
     )
 )]

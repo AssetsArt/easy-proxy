@@ -91,6 +91,7 @@ name = "api_setup"
 version = "0.1.0"
 dependencies = [
  "common",
+ "database",
  "serde",
 ]
 

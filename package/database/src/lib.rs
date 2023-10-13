@@ -1,3 +1,5 @@
+pub mod models;
+
 use serde::{Deserialize, Serialize};
 use surrealdb::{
     engine::local::{Db, Mem, SpeeDb},
@@ -38,7 +40,10 @@ pub async fn get_database() -> &'static Database {
                 database = "easy_proxy_test";
             }
 
-            let disk = Surreal::new::<SpeeDb>("easy_proxy.db").await.unwrap();
+            let cwd_path = std::env::current_dir().unwrap();
+            // println!("cwd_path {}", cwd_path.to_string_lossy());
+            let db_path = cwd_path.join("easy_proxy.db");
+            let disk = Surreal::new::<SpeeDb>(db_path).await.unwrap();
             let memory = Surreal::new::<Mem>(()).await.unwrap();
 
             if let Err(e) = disk.use_ns(namespace).use_db(database).await {
