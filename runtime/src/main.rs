@@ -13,7 +13,7 @@ async fn main() {
     let _ = database::init().await;
 
     // address to listen on
-    let addr = conf.runtime.api;
+    let addr = &conf.runtime.api;
     let routes = Router::new()
         .nest(
             "/api",

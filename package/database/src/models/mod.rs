@@ -1,3 +1,5 @@
-pub mod installing;
+mod admin;
+mod installing;
 
-pub use installing::*;
+pub use admin::Admin;
+pub use installing::Installing;

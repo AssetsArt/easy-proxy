@@ -1,6 +1,7 @@
 pub mod models;
 
 use serde::{Deserialize, Serialize};
+pub use surrealdb::{self};
 use surrealdb::{
     engine::local::{Db, Mem, SpeeDb},
     sql::Thing,
@@ -25,12 +26,14 @@ pub async fn init() {
     let _ = get_database().await;
 }
 
-pub async fn get_database() -> &'static Database {
-    static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> =
-        once_cell::sync::Lazy::new(OnceCell::new);
+// This is a global variable that is initialized once
+static GLOBAL_DB: once_cell::sync::Lazy<OnceCell<Database>> =
+    once_cell::sync::Lazy::new(OnceCell::new);
 
+pub async fn get_database() -> &'static Database {
     GLOBAL_DB
         .get_or_init(|| async {
+            // println!("Init database");
             let conf = config::get_config();
             let mut namespace = conf.database.namespace.as_str();
             let mut database = conf.database.database.as_str();
@@ -40,18 +43,13 @@ pub async fn get_database() -> &'static Database {
                 namespace = "easy_proxy_test";
                 database = "easy_proxy_test";
             }
-
-            let cwd_path = std::env::current_dir().unwrap();
-            let db_path = if conf.database.file.starts_with('/') {
-                std::path::PathBuf::from(conf.database.file.as_str())
-            } else {
-                cwd_path.join(conf.database.file.as_str())
-            };
             let disk;
-            if conf.database.engine == config::DatabaseEngine::Speedb {
-                disk = Surreal::new::<SpeeDb>(db_path).await.unwrap();
-            } else if conf.database.engine == config::DatabaseEngine::Tikv {
-                disk = Surreal::new::<SpeeDb>(conf.database.host).await.unwrap();
+            if conf.database.engine == config::models::DatabaseEngine::Speedb {
+                disk = Surreal::new::<SpeeDb>(conf.database.file.as_str())
+                    .await
+                    .unwrap();
+            } else if conf.database.engine == config::models::DatabaseEngine::Tikv {
+                disk = Surreal::new::<SpeeDb>(&conf.database.host).await.unwrap();
             } else {
                 panic!("unknown database engine");
             }

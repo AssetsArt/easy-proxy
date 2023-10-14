@@ -108,7 +108,7 @@ pub async fn installing(mut input: Json<Value>) -> Response<Body> {
         .bind(("name", "Admin"))
         .bind(("username", input.username.clone()))
         .bind(("password", input.password.clone()))
-        .bind(("role", "super_admin"))
+        .bind(("role", "root"))
         .await
     {
         Ok(r) => r,

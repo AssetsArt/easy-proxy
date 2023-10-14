@@ -8,6 +8,7 @@ members = [
   "package/common",
   "package/database",
   "package/config",
+  "package/jwt",
   "api/auth",
   "api/setup",
 ]

@@ -20,7 +20,8 @@ pub const BASE_PATH: &str = "/api/auth";
     components(
         schemas(
             resource::LoginResponse,
-            resource::LoginInput
+            resource::LoginInput,
+            resource::LoginResponseData
         )
     )
 )]
