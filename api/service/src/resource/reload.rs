@@ -26,7 +26,7 @@ responses(
     )
 ),
 )]
-pub async fn reload() -> Response<Body> {
+pub async fn reload(_: middleware::Authorization) -> Response<Body> {
     database::reload_svc().await;
     common::response::json(
         serde_json::json!(ReloadResponse {
