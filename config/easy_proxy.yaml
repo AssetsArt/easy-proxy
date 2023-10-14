@@ -1,8 +1,8 @@
 runtime:
   api: "0.0.0.0:1337"
 jwt:
-  public: config/jwt/public.key
-  private: config/jwt/private.key
+  public: config/jwt/default_public.key
+  private: config/jwt/default_private.key
   expire: 8h
 database:
   engine: Speedb # Tikv or Speedb // case sensitive

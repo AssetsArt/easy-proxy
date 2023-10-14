@@ -34,7 +34,10 @@ To contribute or use Easy Proxy, follow these steps:
    ```
 3. Generate an RSA certificate for JWT:
    ```sh
-   ssh-keygen -t rsa -b 4096 -m PEM -E SHA512 -f cert/jwt.pem
+   openssl genrsa -out ./config/jwt/private.key 4096
+   ```
+   ```sh
+   openssl rsa -in ./config/jwt/private.key -pubout -outform PEM -out ./config/jwt/public.key
    ```
 4. Run the application:
    ```sh
