@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 api_auth = { path = "../api/auth" }
 api_setup = { path = "../api/setup" }
+api_service = { path = "../api/service" }
 common = { path = "../package/common" }
 config = { path = "../package/config" }
 database = { path = "../package/database" }

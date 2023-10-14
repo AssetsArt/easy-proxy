@@ -19,7 +19,8 @@ async fn main() {
             "/api",
             Router::new()
                 .merge(api_auth::routes::Routes::new().get_routes())
-                .merge(api_setup::routes::Routes::new().get_routes()),
+                .merge(api_setup::routes::Routes::new().get_routes())
+                .merge(api_service::routes::Routes::new().get_routes()),
         )
         .merge(SwaggerUi::new("/apidoc").urls(vec![
             (
@@ -29,6 +30,10 @@ async fn main() {
             (
                 "/apidoc/setup/openapi.json".into(),
                 api_setup::api_doc::ApiDoc::openapi(),
+            ),
+            (
+                "/apidoc/service/openapi.json".into(),
+                api_service::api_doc::ApiDoc::openapi(),
             ),
         ]));
 

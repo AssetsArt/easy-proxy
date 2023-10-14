@@ -95,6 +95,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_service"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "database",
+ "middleware",
+ "serde",
+]
+
+[[package]]
 name = "api_setup"
 version = "0.1.0"
 dependencies = [
@@ -1821,6 +1831,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f665ee40bc4a3c5590afb1e9677db74a508659dfd71e126420da8274909a0167"
 
 [[package]]
+name = "middleware"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "common",
+ "jwt",
+ "serde",
+]
+
+[[package]]
 name = "miette"
 version = "5.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2733,6 +2753,7 @@ name = "runtime"
 version = "0.1.0"
 dependencies = [
  "api_auth",
+ "api_service",
  "api_setup",
  "common",
  "config",
