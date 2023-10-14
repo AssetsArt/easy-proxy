@@ -1,3 +1,4 @@
+use super::validate::validate_add;
 use common::{
     axum::{body::Body, response::Response, Json},
     http::StatusCode,
@@ -6,8 +7,6 @@ use common::{
 };
 use database::models;
 use serde::{Deserialize, Serialize};
-
-use super::validate::validate_add;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Destination {
@@ -29,16 +28,18 @@ pub struct AddServiceBody {
 pub struct AddServiceResponse {
     pub status: u16,
     pub message: String,
-    pub data: Value,
+    pub data: Option<Vec<Value>>,
 }
 
 #[utoipa::path(
   post,
   path = "/add",
+  request_body = AddServiceBody,
   responses(
       (
           status = http::StatusCode::OK,
-          description = "Successfully added"
+          description = "Successfully added",
+          body = AddServiceResponse
       )
   ),
 )]
@@ -46,7 +47,7 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
     let mut res = AddServiceResponse {
         status: StatusCode::NO_CONTENT.into(),
         message: "".into(),
-        data: json!(null),
+        data: None,
     };
     let input: AddServiceBody = match serde_json::from_value(input.take()) {
         Ok(r) => r,
@@ -98,12 +99,13 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
         Err(_) => vec![],
     };
 
-    common::response::json(
-        serde_json::json!({
-            "status": 200,
-            "message": "OK",
-            "data": services
-        }),
-        StatusCode::OK,
-    )
+    res.status = StatusCode::OK.into();
+    res.message = "Successfully added".into();
+    res.data = Some(
+        services
+            .into_iter()
+            .map(|x| serde_json::to_value(x).unwrap())
+            .collect(),
+    );
+    common::response::json(json!(res), StatusCode::OK)
 }

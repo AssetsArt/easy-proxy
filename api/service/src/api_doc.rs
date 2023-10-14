@@ -21,7 +21,7 @@ pub const BASE_PATH: &str = "/api/service";
         schemas(
             resource::Destination,
             resource::AddServiceBody,
-            resource::AddServiceResponse,
+            resource::AddServiceResponse
         )
     )
 )]
