@@ -9,10 +9,9 @@ use common::{
 use database::models;
 use serde::Serialize;
 
-
 #[derive(Serialize, ToSchema)]
 pub struct IsInstallingResponseData {
-    pub is_install: bool
+    pub is_install: bool,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -41,18 +40,18 @@ pub async fn is_installing() -> Response<Body> {
             Err(_) => None,
         };
 
-    let mut is_install = false;
-    if install.is_some() {
-        is_install = install.unwrap().is_installed;
-    }
+    let is_install = install
+        .unwrap_or(models::Installing {
+            id: None,
+            is_installed: false,
+        })
+        .is_installed;
 
     common::response::json(
         serde_json::json!(IsInstallingResponse {
             status: StatusCode::OK.into(),
             message: "success".into(),
-            data: IsInstallingResponseData {
-                is_install
-            }
+            data: IsInstallingResponseData { is_install }
         }),
         StatusCode::OK,
     )

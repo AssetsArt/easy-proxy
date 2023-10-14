@@ -1,0 +1,12 @@
+runtime:
+  api: "0.0.0.0:1337"
+jwt:
+  public: config/jwt/public.key
+  private: config/jwt/private.key
+  expire: 8h
+database:
+  engine: Speedb # Tikv or Speedb // case sensitive
+  file: easy_proxy.db # only for Speedb
+  host: "127.0.0.1:2379" # only for Tikv
+  namespace: easy_proxy
+  database: easy_proxy

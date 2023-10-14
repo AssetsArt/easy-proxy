@@ -31,8 +31,9 @@ pub async fn get_database() -> &'static Database {
 
     GLOBAL_DB
         .get_or_init(|| async {
-            let mut namespace = "easy_proxy";
-            let mut database = "easy_proxy";
+            let conf = config::get_config();
+            let mut namespace = conf.database.namespace.as_str();
+            let mut database = conf.database.database.as_str();
 
             // cfg test overwrite the namespace and database
             if cfg!(test) {
@@ -41,9 +42,19 @@ pub async fn get_database() -> &'static Database {
             }
 
             let cwd_path = std::env::current_dir().unwrap();
-            // println!("cwd_path {}", cwd_path.to_string_lossy());
-            let db_path = cwd_path.join("easy_proxy.db");
-            let disk = Surreal::new::<SpeeDb>(db_path).await.unwrap();
+            let db_path = if conf.database.file.starts_with('/') {
+                std::path::PathBuf::from(conf.database.file.as_str())
+            } else {
+                cwd_path.join(conf.database.file.as_str())
+            };
+            let disk;
+            if conf.database.engine == config::DatabaseEngine::Speedb {
+                disk = Surreal::new::<SpeeDb>(db_path).await.unwrap();
+            } else if conf.database.engine == config::DatabaseEngine::Tikv {
+                disk = Surreal::new::<SpeeDb>(conf.database.host).await.unwrap();
+            } else {
+                panic!("unknown database engine");
+            }
             let memory = Surreal::new::<Mem>(()).await.unwrap();
 
             if let Err(e) = disk.use_ns(namespace).use_db(database).await {
