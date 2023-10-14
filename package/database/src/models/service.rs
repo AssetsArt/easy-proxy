@@ -15,4 +15,5 @@ pub struct Service {
     pub name: String,
     pub algorithm: String,
     pub destination: Vec<Destination>,
+    pub host: String,
 }

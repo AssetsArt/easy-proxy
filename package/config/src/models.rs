@@ -5,11 +5,17 @@ pub struct Config {
     pub runtime: Runtime,
     pub jwt: Jwt,
     pub database: Database,
+    pub proxy: Proxy,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Proxy {
+    pub addr: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Runtime {
-    pub api: String,
+    pub addr: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

@@ -1,19 +1,36 @@
 use common::{
     axum::{Router, Server},
-    tokio,
+    tokio, tracing, tracing_subscriber,
     utoipa::OpenApi,
 };
+use futures_util::future::join;
 use utoipa_swagger_ui::SwaggerUi;
 
 #[tokio::main]
 async fn main() {
+    // initialize the logger
+    tracing_subscriber::fmt::init();
+
     let conf = config::get_config();
 
     // init database
     let _ = database::init().await;
+    database::reload_svc().await;
+
+    // start the proxy server
+    let prox_svc = async move {
+        match proxy::listen::Listen::new().listen().await {
+            Ok(_) => {
+                tracing::info!("Proxy server stopped");
+            }
+            Err(e) => {
+                tracing::error!("Error: {}", e);
+            }
+        }
+    };
 
     // address to listen on
-    let addr = &conf.runtime.api;
+    let addr = &conf.runtime.addr;
     let routes = Router::new()
         .nest(
             "/api",
@@ -37,11 +54,14 @@ async fn main() {
             ),
         ]));
 
-    println!("\n🚀 Listening on http://{}\n", addr);
-    if let Err(e) = Server::bind(&addr.parse().unwrap())
-        .serve(routes.into_make_service())
-        .await
-    {
-        eprintln!("Server error: {}", e);
-    }
+    let app_svc = async move {
+        tracing::info!("🚀 Listening on http://{}", addr);
+        if let Err(e) = Server::bind(&addr.parse().unwrap())
+            .serve(routes.into_make_service())
+            .await
+        {
+            eprintln!("Server error: {}", e);
+        }
+    };
+    join(app_svc, prox_svc).await;
 }

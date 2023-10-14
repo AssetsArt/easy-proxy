@@ -14,14 +14,16 @@ pub const BASE_PATH: &str = "/api/service";
         description = "An API to manage service"
     ),
     paths(
-        resource::add
+        resource::add,
+        resource::reload
     ),
     modifiers(&ServerBase),
     components(
         schemas(
             resource::Destination,
             resource::AddServiceBody,
-            resource::AddServiceResponse
+            resource::AddServiceResponse,
+            resource::ReloadResponse
         )
     )
 )]

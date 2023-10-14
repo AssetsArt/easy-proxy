@@ -1,12 +1,11 @@
 [package]
-name = "api-auth"
+name = "proxy-balance"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-jwt = { path = "../../package/jwt" }
-serde = { version="1", features = ["derive"] }
-common = { path = "../../package/common" }
 database = { path = "../../package/database" }
+serde = { version="1", features = ["derive"] }
+proxy-common = { path = "../common" }

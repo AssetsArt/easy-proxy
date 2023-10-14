@@ -27,7 +27,7 @@ pub struct IsInstallingResponse {
   responses(
       (
           status = http::StatusCode::OK,
-          description = "Successfully signed in",
+          description = "Successfully get is installing",
           body = IsInstallingResponse
       )
   ),

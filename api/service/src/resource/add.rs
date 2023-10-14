@@ -65,15 +65,16 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
     let db = database::get_database().await;
     match db
         .disk
-        .query("SELECT * FROM services WHERE name = $name")
+        .query("SELECT * FROM services WHERE name = $name OR host = $host")
         .bind(("name", &input.name))
+        .bind(("host", &input.host))
         .await
     {
         Ok(mut r) => {
             let user: Option<models::Service> = r.take(0).unwrap_or(None);
             if user.is_some() {
                 res.status = StatusCode::BAD_REQUEST.into();
-                res.message = "Name already exists".into();
+                res.message = "Name or host already exists".into();
                 return common::response::json(json!(res), StatusCode::BAD_REQUEST);
             }
         }
@@ -96,7 +97,11 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
         .await
     {
         Ok(r) => r,
-        Err(_) => vec![],
+        Err(e) => {
+            res.status = StatusCode::INTERNAL_SERVER_ERROR.into();
+            res.message = format!("Error creating service: {}", e);
+            return common::response::json(json!(res), StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
     res.status = StatusCode::OK.into();

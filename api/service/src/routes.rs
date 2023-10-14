@@ -15,7 +15,12 @@ impl Default for Routes {
 
 impl Routes {
     pub fn new() -> Self {
-        let r = Router::new().nest("/service", Router::new().route("/add", post(resource::add)));
+        let r = Router::new().nest(
+            "/service",
+            Router::new()
+                .route("/add", post(resource::add))
+                .route("/reload", post(resource::reload)),
+        );
 
         Self { r }
     }

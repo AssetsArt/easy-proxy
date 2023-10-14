@@ -1,5 +1,6 @@
 pub mod models;
 
+use common::serde_json;
 use serde::{Deserialize, Serialize};
 pub use surrealdb::{self};
 use surrealdb::{
@@ -70,4 +71,28 @@ pub async fn get_database() -> &'static Database {
             }
         })
         .await
+}
+
+pub async fn reload_svc() {
+    let db = get_database().await;
+    let svc: Vec<models::Service> = db.disk.select("services").await.unwrap_or(vec![]);
+    for s in svc {
+        let _: Vec<models::Service> = match db
+            .memory
+            .create("services")
+            .content(serde_json::json!({
+                "algorithm": s.algorithm,
+                "destination": s.destination,
+                "name": s.name,
+                "host": s.host,
+            }))
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                println!("Error creating service: {}", e);
+                vec![]
+            }
+        };
+    }
 }

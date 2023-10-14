@@ -4,4 +4,4 @@ mod service;
 
 pub use admin::Admin;
 pub use installing::Installing;
-pub use service::Service;
+pub use service::{Destination, Service};
