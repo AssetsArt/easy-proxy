@@ -18,10 +18,11 @@ ENV TZ $timezone
 
 WORKDIR /app
 # copy app release
-COPY --from=builder /app/target/release/easy-proxy ./
+COPY --from=builder /app/target/release/runtime ./easy-proxy
 
 # expose default port
-EXPOSE 8100
+EXPOSE 1337 
+EXPOSE 8080
 
 # default run entrypoint
 CMD ["./easy-proxy"]
