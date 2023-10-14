@@ -13,4 +13,6 @@ members = [
   "api/auth",
   "api/setup",
   "api/service",
+  "proxy/common",
+  "proxy/io"
 ]

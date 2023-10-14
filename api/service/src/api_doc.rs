@@ -18,7 +18,11 @@ pub const BASE_PATH: &str = "/api/service";
     ),
     modifiers(&ServerBase),
     components(
-        schemas()
+        schemas(
+            resource::Destination,
+            resource::AddServiceBody,
+            resource::AddServiceResponse,
+        )
     )
 )]
 pub struct ApiDoc;
