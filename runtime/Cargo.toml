@@ -1,0 +1,17 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+api-auth = { path = "../api/auth" }
+api-setup = { path = "../api/setup" }
+api-service = { path = "../api/service" }
+common = { path = "../package/common" }
+config = { path = "../package/config" }
+database = { path = "../package/database" }
+proxy = { path = "../proxy/proxy" }
+utoipa-swagger-ui = { version = "4", features = ["axum"] }
+futures-util = "0.3"
