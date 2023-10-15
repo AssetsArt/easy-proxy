@@ -76,8 +76,13 @@ impl Inbound {
                             }
                         }
                     };
+                    // sender.is_ready();
                     // return Ok(hyper::Response::new(crate::response::full("Hello, World!")));
-                    if let Ok(()) = sender.ready().await {
+                    if sender.is_ready() {
+                        if let Ok(res) = sender.send_request(req).await {
+                            return Ok(res.map(|b| b.boxed()));
+                        }
+                    } else if let Ok(()) = sender.ready().await {
                         if let Ok(res) = sender.send_request(req).await {
                             return Ok(res.map(|b| b.boxed()));
                         }
