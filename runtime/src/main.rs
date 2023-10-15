@@ -1,3 +1,10 @@
+#[cfg(not(debug_assertions))]
+use mimalloc::MiMalloc;
+
+#[cfg(not(debug_assertions))]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 use common::{
     axum::{Router, Server},
     tokio, tracing, tracing_subscriber,
@@ -55,7 +62,7 @@ async fn main() {
         ]));
 
     let app_svc = async move {
-        tracing::info!("🚀 Listening on http://{}", addr);
+        tracing::info!("🚀 APIs server listening on http://{}", addr);
         if let Err(e) = Server::bind(&addr.parse().unwrap())
             .serve(routes.into_make_service())
             .await

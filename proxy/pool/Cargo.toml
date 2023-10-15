@@ -6,3 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+proxy-common = { path = "../common" }
+config = { path = "../../package/config" }
+proxy-io = { path = "../io" }
+lazy_static = "1"
+rand = "0.8"

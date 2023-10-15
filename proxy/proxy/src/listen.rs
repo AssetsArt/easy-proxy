@@ -35,7 +35,7 @@ impl Listen {
         let server_addr: SocketAddr = self.host.parse()?;
         // Create a TCP listener which will listen for incoming connections.
         let listener = TcpListener::bind(server_addr).await?;
-        tracing::info!("🚀 TCP proxy server listening on: {}", server_addr);
+        tracing::info!("🚀 Proxy server listening on: {}", server_addr);
         // Accept incoming TCP connections
         self.accept(listener).await
     }

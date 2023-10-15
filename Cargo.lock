@@ -1787,6 +1787,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
+name = "libmimalloc-sys"
+version = "0.1.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3979b5c37ece694f1f5e51e7ecc871fdb0f517ed04ee45f88d15d6d553cb9664"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
 name = "libspeedb-sys"
 version = "0.0.2+2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1907,6 +1917,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.32",
+]
+
+[[package]]
+name = "mimalloc"
+version = "0.1.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa01922b5ea280a911e323e4d2fd24b7fe5cc4042e0d2cda3c40775cdc4bdc9c"
+dependencies = [
+ "libmimalloc-sys",
 ]
 
 [[package]]
@@ -2381,6 +2400,7 @@ dependencies = [
  "proxy-balance",
  "proxy-common",
  "proxy-io",
+ "proxy-pool",
 ]
 
 [[package]]
@@ -2415,6 +2435,13 @@ dependencies = [
 [[package]]
 name = "proxy-pool"
 version = "0.1.0"
+dependencies = [
+ "config",
+ "lazy_static",
+ "proxy-common",
+ "proxy-io",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "psl-types"
@@ -2866,6 +2893,7 @@ dependencies = [
  "config",
  "database",
  "futures-util",
+ "mimalloc",
  "proxy",
  "utoipa-swagger-ui",
 ]
