@@ -1,5 +1,5 @@
 [package]
-name = "proxy"
+name = "proxy-pool"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,9 +7,7 @@ edition = "2021"
 
 [dependencies]
 proxy-common = { path = "../common" }
-common = { path = "../../package/common" }
 config = { path = "../../package/config" }
-proxy-balance = { path = "../balance" }
 proxy-io = { path = "../io" }
-lazy_static = "1.4"
-proxy-pool = { path = "../pool" }
+lazy_static = "1"
+rand = "0.8"

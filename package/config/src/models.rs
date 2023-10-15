@@ -11,6 +11,7 @@ pub struct Config {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Proxy {
     pub addr: String,
+    pub max_open_connections: u16
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

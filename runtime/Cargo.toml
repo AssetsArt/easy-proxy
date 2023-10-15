@@ -15,3 +15,11 @@ database = { path = "../package/database" }
 proxy = { path = "../proxy/proxy" }
 utoipa-swagger-ui = { version = "4", features = ["axum"] }
 futures-util = "0.3"
+mimalloc = "0.1"
+
+[profile.release]
+strip = true
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"
