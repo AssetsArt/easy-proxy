@@ -38,19 +38,20 @@ impl ManageConnection {
         let len = sender_pool.len();
         let conf = config::get_config();
         if len < conf.proxy.max_open_connections as usize {
-            tokio::task::spawn(async move {
-                let mut connect = CONNECTION.lock().await;
-                let sender_pool = match connect.get_mut(&addr) {
-                    Some(s) => s,
-                    None => {
-                        connect.insert(addr.clone(), HashMap::default());
-                        connect.get_mut(&addr).unwrap()
-                    }
-                };
-                Self::new_connection(addr.clone(), sender_pool)
-                    .await
-                    .unwrap();
-            });
+            Self::new_connection(addr.clone(), sender_pool).await?;
+            // tokio::task::spawn(async move {
+            //     let mut connect = CONNECTION.lock().await;
+            //     let sender_pool = match connect.get_mut(&addr) {
+            //         Some(s) => s,
+            //         None => {
+            //             connect.insert(addr.clone(), HashMap::default());
+            //             connect.get_mut(&addr).unwrap()
+            //         }
+            //     };
+            //     Self::new_connection(addr.clone(), sender_pool)
+            //         .await
+            //         .unwrap();
+            // });
         }
         // random select a connection
         let index = rand::random::<usize>() % len;
