@@ -1,6 +1,7 @@
 pub mod models;
 
 use common::serde_json;
+use models::Service;
 use serde::{Deserialize, Serialize};
 pub use surrealdb::{self};
 use surrealdb::{
@@ -94,5 +95,34 @@ pub async fn reload_svc() {
                 vec![]
             }
         };
+    }
+
+    // clean up svc
+    let svc: Vec<models::Service> = db.memory.select("services").await.unwrap_or(vec![]);
+    for s in svc {
+        // check if svc exists in disk
+        let sv: Option<models::Service> = match db
+            .disk
+            .query("SELECT * FROM services WHERE name = $name OR host = $host")
+            .bind(("name", &s.name))
+            .bind(("host", &s.host))
+            .await
+        {
+            Ok(mut r) => r.take(0).unwrap_or(None),
+            Err(e) => {
+                println!("Error checking name: {}", e);
+                None
+            }
+        };
+        if sv.is_none()
+            && db
+                .memory
+                .delete::<Option<Service>>(("services", s.id.unwrap()))
+                .await
+                .is_ok()
+        {
+            // remove sv from memory
+            println!("Remove svc from memory: {}", s.name);
+        }
     }
 }
