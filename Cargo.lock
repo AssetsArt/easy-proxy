@@ -2377,6 +2377,7 @@ version = "0.1.0"
 dependencies = [
  "common",
  "config",
+ "lazy_static",
  "proxy-balance",
  "proxy-common",
  "proxy-io",
@@ -2410,6 +2411,10 @@ version = "0.1.0"
 dependencies = [
  "proxy-common",
 ]
+
+[[package]]
+name = "proxy-pool"
+version = "0.1.0"
 
 [[package]]
 name = "psl-types"

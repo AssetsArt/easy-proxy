@@ -16,5 +16,6 @@ members = [
   "proxy/common",
   "proxy/io",
   "proxy/proxy",
-  "proxy/balance"
+  "proxy/balance",
+  "proxy/pool"
 ]

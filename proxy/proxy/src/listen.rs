@@ -49,15 +49,13 @@ impl Listen {
 
     fn handler(&self, io: TokioIo<TcpStream>, addr: SocketAddr) -> Result<(), anyhow::Error> {
         tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
+            let _ = http1::Builder::new()
                 .preserve_header_case(true)
                 .title_case_headers(true)
                 .serve_connection(io, service_fn(|req| Inbound::inbound(req, addr)))
                 .with_upgrades()
                 .await
-            {
-                tracing::error!("Failed to serve connection: {:?}", err);
-            }
+                .is_err();
         });
         Ok(())
     }
