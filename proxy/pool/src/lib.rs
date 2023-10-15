@@ -6,11 +6,7 @@ use proxy_common::{
         self,
         client::conn::http1::{Builder, SendRequest},
     },
-    tokio::{
-        self,
-        net::TcpStream,
-        sync::Mutex,
-    },
+    tokio::{self, net::TcpStream, sync::Mutex},
 };
 use proxy_io as io;
 use std::collections::HashMap;
@@ -22,10 +18,8 @@ fn get_datetime() -> u64 {
 }
 
 pub struct ManageConnection;
-
 lazy_static::lazy_static! {
-    pub static ref CONNECTION: Mutex<HashMap<String, HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>>> =
-        Mutex::new(HashMap::new());
+    pub static ref CONNECTION: Mutex<HashMap<String, HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>>> = Mutex::new(HashMap::new());
 }
 
 impl ManageConnection {
@@ -53,7 +47,9 @@ impl ManageConnection {
                         connect.get_mut(&addr).unwrap()
                     }
                 };
-                Self::new_connection(addr.clone(), sender_pool).await.unwrap();
+                Self::new_connection(addr.clone(), sender_pool)
+                    .await
+                    .unwrap();
             });
         }
         // random select a connection
@@ -74,12 +70,16 @@ impl ManageConnection {
             }
         };
         let io = io::tokiort::TokioIo::new(stream);
-        let (sender, conn) = Builder::new()
+        let (mut sender, conn) = Builder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
             .handshake::<_, BoxBody<Bytes, hyper::Error>>(io)
             .await?;
-        pool.insert(id, sender);
+
+        if let Ok(()) = sender.ready().await {
+            pool.insert(id, sender);
+        }
+
         tokio::task::spawn(async move {
             if conn.await.is_ok() {
                 let mut connect = CONNECTION.lock().await;
