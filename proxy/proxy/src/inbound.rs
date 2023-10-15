@@ -37,8 +37,20 @@ impl Inbound {
             match ManageConnection::pool(addr.clone()).await {
                 Ok(id) => {
                     let mut connect = CONNECTION.lock().await;
-                    let sender_pool = connect.get_mut(&addr.clone()).unwrap();
-                    let sender = sender_pool.get_mut(&id).unwrap();
+                    let sender_pool = match connect.get_mut(&addr.clone()) {
+                        Some(s) => s,
+                        None => {
+                            tracing::error!("service unavailable: {}", addr);
+                            return Ok(service_unavailable("503 Service Temporarily Unavailable"));
+                        }
+                    };
+                    let sender = match sender_pool.get_mut(&id) {
+                        Some(s) => s,
+                        None => {
+                            tracing::error!("service unavailable: {}", addr);
+                            return Ok(service_unavailable("503 Service Temporarily Unavailable"));
+                        }
+                    };
                     // return Ok(hyper::Response::new(crate::response::full("Hello, World!")));
                     if let Ok(()) = sender.ready().await {
                         if let Ok(res) = sender.send_request(req).await {
