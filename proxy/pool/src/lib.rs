@@ -70,15 +70,11 @@ impl ManageConnection {
             }
         };
         let io = io::tokiort::TokioIo::new(stream);
-        let (mut sender, conn) = Builder::new()
+        let (sender, conn) = Builder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
             .handshake::<_, BoxBody<Bytes, hyper::Error>>(io)
             .await?;
-
-        if let Ok(()) = sender.ready().await {
-            pool.insert(id, sender);
-        }
 
         tokio::task::spawn(async move {
             if conn.await.is_ok() {
@@ -94,6 +90,9 @@ impl ManageConnection {
                 println!("Connection closed normally ip: {}, id: {}", addr, id);
             }
         });
+
+        pool.insert(id, sender);
+
         Ok(())
     }
 }
