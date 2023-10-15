@@ -1,4 +1,7 @@
-use common::axum::{routing::post, Router};
+use common::axum::{
+    routing::{get, post},
+    Router,
+};
 
 // internal
 use crate::resource;
@@ -19,7 +22,7 @@ impl Routes {
             "/service",
             Router::new()
                 .route("/add", post(resource::add))
-                .route("/reload", post(resource::reload)),
+                .route("/reload", get(resource::reload)),
         );
 
         Self { r }

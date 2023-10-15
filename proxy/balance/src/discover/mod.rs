@@ -40,6 +40,7 @@ pub async fn distination(
 
     // TODO: find service by host from memory
     if let Some(proxy_host) = req.headers().get("host") {
+        println!("proxy_host: {:?}", proxy_host);
         let svc = db
             .memory
             .query("SELECT * FROM services WHERE host = $host")
