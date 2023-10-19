@@ -1,8 +1,8 @@
 runtime:
   addr: "0.0.0.0:1337"
 proxy:
-  addr: "0.0.0.0:8080"
-  max_open_connections: 10 # per destination
+  addr: "0.0.0.0:8088"
+  max_open_connections: 20 # per destination
 jwt:
   public: config/jwt/default_public.key
   private: config/jwt/default_private.key

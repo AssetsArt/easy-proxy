@@ -6,10 +6,11 @@ use proxy_common::{
         self,
         client::conn::http1::{Builder, SendRequest},
     },
-    tokio::{self, net::TcpStream, sync::Mutex},
+    tokio::{self, net::TcpStream},
 };
 use proxy_io as io;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicPtr, Ordering};
 
 fn get_datetime() -> u64 {
     let now = std::time::SystemTime::now();
@@ -18,40 +19,45 @@ fn get_datetime() -> u64 {
 }
 
 pub struct ManageConnection;
-lazy_static::lazy_static! {
-    pub static ref CONNECTION: Mutex<HashMap<String, HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>>> = Mutex::new(HashMap::new());
+
+#[derive(Default)]
+pub struct Connections {
+    pub senders: HashMap<String, HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>>,
+}
+
+static CONNECTIONS: AtomicPtr<Connections> = AtomicPtr::new(std::ptr::null_mut());
+
+pub fn get_connections() -> &'static mut Connections {
+    unsafe {
+        let ptr = CONNECTIONS.load(Ordering::Relaxed);
+        if ptr.is_null() {
+            let conn = Box::default();
+            let ptr = Box::into_raw(conn);
+            CONNECTIONS.store(ptr, Ordering::Relaxed);
+        }
+        &mut *CONNECTIONS.load(Ordering::Relaxed)
+    }
 }
 
 impl ManageConnection {
     pub async fn pool(addr: String) -> Result<u64, anyhow::Error> {
-        let mut connect = CONNECTION.lock().await;
-        let sender_pool = match connect.get_mut(&addr) {
+        let conn = get_connections();
+        let senders = &mut conn.senders;
+        let sender_pool = match senders.get_mut(&addr) {
             Some(s) => s,
             None => {
-                connect.insert(addr.clone(), HashMap::default());
-                connect.get_mut(&addr).unwrap()
+                senders.insert(addr.clone(), HashMap::new());
+                senders.get_mut(&addr).unwrap()
             }
         };
         if sender_pool.is_empty() {
             Self::new_connection(addr.clone(), sender_pool).await?;
         }
+
         let len = sender_pool.len();
         let conf = config::get_config();
         if len < conf.proxy.max_open_connections as usize {
             Self::new_connection(addr.clone(), sender_pool).await?;
-            // tokio::task::spawn(async move {
-            //     let mut connect = CONNECTION.lock().await;
-            //     let sender_pool = match connect.get_mut(&addr) {
-            //         Some(s) => s,
-            //         None => {
-            //             connect.insert(addr.clone(), HashMap::default());
-            //             connect.get_mut(&addr).unwrap()
-            //         }
-            //     };
-            //     Self::new_connection(addr.clone(), sender_pool)
-            //         .await
-            //         .unwrap();
-            // });
         }
         // random select a connection
         let index = rand::random::<usize>() % len;
@@ -79,15 +85,11 @@ impl ManageConnection {
 
         tokio::task::spawn(async move {
             if conn.await.is_ok() {
-                let mut connect = CONNECTION.lock().await;
-                let sender_pool = match connect.get_mut(&addr) {
-                    Some(s) => s,
-                    None => {
-                        connect.insert(addr.clone(), HashMap::default());
-                        connect.get_mut(&addr).unwrap()
-                    }
-                };
-                sender_pool.remove(&id);
+                let conn = get_connections();
+                let senders = &mut conn.senders;
+                if let Some(sender) = senders.get_mut(&addr) {
+                    sender.remove(&id);
+                }
                 println!("Connection closed normally ip: {}, id: {}", addr, id);
             }
         });

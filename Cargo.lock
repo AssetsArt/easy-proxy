@@ -2421,6 +2421,7 @@ dependencies = [
  "bytes",
  "http-body-util",
  "hyper 1.0.0-rc.4",
+ "once_cell",
  "pin-project-lite",
  "tokio",
 ]

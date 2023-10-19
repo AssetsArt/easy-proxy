@@ -8,9 +8,8 @@ use proxy_common::{
     bytes::Bytes,
     http_body_util::{combinators::BoxBody, BodyExt},
     hyper::{self, body::Incoming, Method},
-    tokio::{self},
 };
-use proxy_pool::{ManageConnection, CONNECTION};
+use proxy_pool::{get_connections, ManageConnection};
 use std::net::SocketAddr;
 
 pub struct Inbound;
@@ -37,47 +36,24 @@ impl Inbound {
         } else {
             match ManageConnection::pool(addr.clone()).await {
                 Ok(id) => {
-                    let mut connect = CONNECTION.lock().await;
-                    let sender_pool = match connect.get_mut(&addr.clone()) {
+                    let conn = get_connections();
+                    let senders = &mut conn.senders;
+                    let sender_pool = match senders.get_mut(&addr) {
                         Some(s) => s,
                         None => {
-                            // tracing::error!("service unavailable: {}", addr);
-                            // return Ok(service_unavailable("503 Service Temporarily Unavailable"));
-                            // sleep 100ms
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                            println!("[1] sleep 100ms");
-                            match connect.get_mut(&addr.clone()) {
-                                Some(s) => s,
-                                None => {
-                                    tracing::error!("service unavailable: {}", addr);
-                                    return Ok(service_unavailable(
-                                        "503 Service Temporarily Unavailable",
-                                    ));
-                                }
-                            }
+                            tracing::error!("service unavailable: {}", addr);
+                            return Ok(service_unavailable("503 Service Temporarily Unavailable"));
                         }
                     };
+
                     let sender = match sender_pool.get_mut(&id) {
                         Some(s) => s,
                         None => {
-                            // tracing::error!("service unavailable: {}", addr);
-                            // return Ok(service_unavailable("503 Service Temporarily Unavailable"));
-                            // sleep 100ms
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                            println!("[2] sleep 100ms");
-                            match sender_pool.values_mut().last() {
-                                Some(s) => s,
-                                None => {
-                                    tracing::error!("service unavailable: {}", addr);
-                                    return Ok(service_unavailable(
-                                        "503 Service Temporarily Unavailable",
-                                    ));
-                                }
-                            }
+                            tracing::error!("service unavailable: {}", addr);
+                            return Ok(service_unavailable("503 Service Temporarily Unavailable"));
                         }
                     };
-                    // sender.is_ready();
-                    // return Ok(hyper::Response::new(crate::response::full("Hello, World!")));
+
                     if sender.is_ready() {
                         if let Ok(res) = sender.send_request(req).await {
                             return Ok(res.map(|b| b.boxed()));
@@ -86,20 +62,14 @@ impl Inbound {
                         if let Ok(res) = sender.send_request(req).await {
                             return Ok(res.map(|b| b.boxed()));
                         }
-                    } else if let Some(sender) = sender_pool.values_mut().last() {
-                        if let Ok(()) = sender.ready().await {
-                            if let Ok(res) = sender.send_request(req).await {
-                                return Ok(res.map(|b| b.boxed()));
-                            }
-                        }
-                    }
+                    } 
                 }
                 Err(e) => {
                     tracing::error!("{}", e);
                     return Ok(service_unavailable("503 Service Temporarily Unavailable"));
                 }
             };
-            Ok(bad_gateway("502 Bad Gateway"))
+            Ok(bad_gateway("503 Service Temporarily Unavailable"))
         }
     }
 }
