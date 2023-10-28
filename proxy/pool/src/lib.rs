@@ -6,96 +6,188 @@ use proxy_common::{
         self,
         client::conn::http1::{Builder, SendRequest},
     },
-    tokio::{self, net::TcpStream},
+    hyper_util::rt::TokioIo,
+    tokio::{
+        self,
+        net::TcpStream,
+        sync::{Mutex, MutexGuard},
+    },
 };
-use proxy_io as io;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::{collections::HashMap, sync::OnceLock};
 
-fn get_datetime() -> u64 {
+fn random_id() -> u64 {
     let now = std::time::SystemTime::now();
-    let duration = now.duration_since(std::time::UNIX_EPOCH).unwrap();
+    let duration = match now.duration_since(std::time::UNIX_EPOCH) {
+        Ok(n) => n,
+        Err(_) => {
+            let random = rand::random::<u64>();
+            return random;
+        }
+    };
     duration.as_secs() * 1_000_000_000 + duration.subsec_nanos() as u64
 }
 
 pub struct ManageConnection;
+type SendRequestPool = Vec<(u64, Mutex<SendRequest<BoxBody<Bytes, hyper::Error>>>)>;
+type SendRequestPoolId = Vec<(String, u64)>;
 
-#[derive(Default)]
-pub struct Connections {
-    pub senders: HashMap<String, HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>>,
+static mut CONNECTIONS: OnceLock<SendRequestPool> = OnceLock::new();
+static mut TEMP_CONNECTIONS: OnceLock<
+    HashMap<String, Mutex<SendRequest<BoxBody<Bytes, hyper::Error>>>>,
+> = OnceLock::new();
+
+pub fn init() {
+    unsafe {
+        CONNECTIONS.get_or_init(|| Vec::new());
+        TEMP_CONNECTIONS.get_or_init(|| HashMap::new());
+    }
 }
 
-static CONNECTIONS: AtomicPtr<Connections> = AtomicPtr::new(std::ptr::null_mut());
-
-pub fn get_connections() -> &'static mut Connections {
-    unsafe {
-        let ptr = CONNECTIONS.load(Ordering::Relaxed);
-        if ptr.is_null() {
-            let conn = Box::default();
-            let ptr = Box::into_raw(conn);
-            CONNECTIONS.store(ptr, Ordering::Relaxed);
-        }
-        &mut *CONNECTIONS.load(Ordering::Relaxed)
-    }
+lazy_static::lazy_static! {
+    static ref CONNECTIONS_IDS: Mutex<SendRequestPoolId> = Mutex::new(Vec::new());
 }
 
 impl ManageConnection {
-    pub async fn pool(addr: String) -> Result<u64, anyhow::Error> {
-        let conn = get_connections();
-        let senders = &mut conn.senders;
-        let sender_pool = match senders.get_mut(&addr) {
-            Some(s) => s,
-            None => {
-                senders.insert(addr.clone(), HashMap::new());
-                senders.get_mut(&addr).unwrap()
+    pub async fn get(
+        addr: String,
+    ) -> Result<MutexGuard<'static, SendRequest<BoxBody<Bytes, hyper::Error>>>, anyhow::Error> {
+        let conf = config::get_config();
+        let mut conn_ids = CONNECTIONS_IDS.lock().await;
+        let conn = unsafe {
+            match CONNECTIONS.get_mut() {
+                Some(c) => c,
+                None => {
+                    // sleep 50ms
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    match CONNECTIONS.get_mut() {
+                        Some(c) => c,
+                        None => return Err(anyhow::anyhow!("Connection pool is not initialized")),
+                    }
+                }
             }
         };
-        if sender_pool.is_empty() {
-            Self::new_connection(addr.clone(), sender_pool).await?;
+
+        let mut is_max_connections = false;
+        if conn_ids.is_empty() {
+            let id = random_id();
+            conn_ids.push((addr.clone(), id));
+            ManageConnection::new_connection(&mut (addr.clone(), id)).await;
+        } else if conn_ids.iter().filter(|(a, _)| a == &addr).count()
+            < conf.proxy.max_open_connections.into()
+        {
+            let id = random_id();
+            conn_ids.push((addr.clone(), id));
+            ManageConnection::new_connection(&mut (addr.clone(), id)).await;
+        } else {
+            is_max_connections = true;
         }
 
-        let len = sender_pool.len();
-        let conf = config::get_config();
-        if len < conf.proxy.max_open_connections as usize {
-            Self::new_connection(addr.clone(), sender_pool).await?;
+        if !is_max_connections {
+            let temp_conn = unsafe {
+                match TEMP_CONNECTIONS.get_mut() {
+                    Some(c) => c,
+                    None => {
+                        // sleep 50ms
+                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        match TEMP_CONNECTIONS.get_mut() {
+                            Some(c) => c,
+                            None => {
+                                return Err(anyhow::anyhow!("Connection pool is not initialized"))
+                            }
+                        }
+                    }
+                }
+            };
+            let sender = create_conn(addr.clone()).await;
+            let sender = Mutex::new(sender);
+            temp_conn.insert(addr.clone(), sender);
+            if let Some(sender) = temp_conn.get(&addr) {
+                let sender = sender.lock().await;
+                return Ok(sender);
+            }
         }
-        // random select a connection
-        let index = rand::random::<usize>() % len;
-        let id = *sender_pool.keys().nth(index).unwrap();
-        Ok(id)
+        let random = rand::random::<usize>() % conn_ids.iter().filter(|(a, _)| a == &addr).count();
+        let state = conn_ids
+            .iter()
+            .filter(|(a, _)| a == &addr)
+            .nth(random)
+            .unwrap()
+            .clone();
+        let id = state.1;
+        // unlock conn_ids
+        drop(conn_ids);
+        for (i_id, sender) in conn.iter() {
+            if i_id == &id {
+                let sender = sender.lock().await;
+                if !sender.is_closed() {
+                    return Ok(sender);
+                }
+                drop(sender);
+            }
+        }
+        Err(anyhow::anyhow!("Connection not found"))
     }
 
-    async fn new_connection(
-        addr: String,
-        pool: &mut HashMap<u64, SendRequest<BoxBody<Bytes, hyper::Error>>>,
-    ) -> Result<(), anyhow::Error> {
-        let id = get_datetime();
-        let stream = match TcpStream::connect(addr.clone()).await {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(anyhow::anyhow!("connect error: {}", e));
-            }
-        };
-        let io = io::tokiort::TokioIo::new(stream);
+    async fn new_connection(row: &mut (String, u64)) {
+        let (addr, id) = row;
+        let stream = TcpStream::connect(addr.clone()).await.unwrap();
+        let io = TokioIo::new(stream);
         let (sender, conn) = Builder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
-            .handshake::<_, BoxBody<Bytes, hyper::Error>>(io)
-            .await?;
+            .handshake(io)
+            .await
+            .unwrap();
 
-        tokio::task::spawn(async move {
-            if conn.await.is_ok() {
-                let conn = get_connections();
-                let senders = &mut conn.senders;
-                if let Some(sender) = senders.get_mut(&addr) {
-                    sender.remove(&id);
-                }
-                println!("Connection closed normally ip: {}, id: {}", addr, id);
+        let conns = unsafe {
+            match CONNECTIONS.get_mut() {
+                Some(c) => c,
+                None => return,
             }
+        };
+        conns.push((*id, Mutex::new(sender)));
+
+        let id = *id;
+        let addr = addr.clone();
+        tokio::task::spawn(async move {
+            if let Err(err) = conn.await {
+                println!("Connection failed: {:?}", err);
+            }
+            let conns = unsafe {
+                match CONNECTIONS.get_mut() {
+                    Some(c) => c,
+                    None => return,
+                }
+            };
+            conns.retain(|(i_id, _)| i_id != &id);
+            let mut conn_ids = CONNECTIONS_IDS.lock().await;
+            conn_ids.retain(|(a, i_id)| a != &addr && i_id != &id);
+            println!("Disconnect: {} -> {}", addr, id);
         });
-
-        pool.insert(id, sender);
-
-        Ok(())
     }
+}
+
+async fn create_conn(addr: String) -> SendRequest<BoxBody<Bytes, hyper::Error>> {
+    let stream = TcpStream::connect(addr.clone()).await.unwrap();
+    let io = TokioIo::new(stream);
+    let (sender, conn) = Builder::new()
+        .preserve_header_case(true)
+        .title_case_headers(true)
+        .handshake(io)
+        .await
+        .unwrap();
+    tokio::task::spawn(async move {
+        if let Err(err) = conn.await {
+            println!("Connection failed: {:?}", err);
+        }
+        let temp_conn = unsafe {
+            match TEMP_CONNECTIONS.get_mut() {
+                Some(c) => c,
+                None => return,
+            }
+        };
+        temp_conn.remove(&addr);
+        println!("Disconnect temp: {}", addr);
+    });
+    sender
 }

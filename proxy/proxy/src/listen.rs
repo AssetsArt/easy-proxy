@@ -3,12 +3,12 @@ use common::tracing;
 use proxy_common::{
     anyhow,
     hyper::{server::conn::http1, service::service_fn},
+    hyper_util::rt::TokioIo,
     tokio::{
         self,
         net::{TcpListener, TcpStream},
     },
 };
-use proxy_io::tokiort::TokioIo;
 use std::net::SocketAddr;
 
 pub struct Listen {
@@ -36,6 +36,10 @@ impl Listen {
         // Create a TCP listener which will listen for incoming connections.
         let listener = TcpListener::bind(server_addr).await?;
         tracing::info!("🚀 Proxy server listening on: {}", server_addr);
+
+        // init pool
+        proxy_pool::init();
+
         // Accept incoming TCP connections
         self.accept(listener).await
     }
