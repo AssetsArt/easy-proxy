@@ -1499,7 +1499,8 @@ dependencies = [
 [[package]]
 name = "hyper"
 version = "1.0.0-rc.4"
-source = "git+https://github.com/hyperium/hyper#a8dcd7ca5df49c0701893c4d9d81ec8c1342f141"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d280a71f348bcc670fc55b02b63c53a04ac0bf2daff2980795aeaf53edae10e6"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1512,6 +1513,7 @@ dependencies = [
  "itoa",
  "pin-project-lite",
  "tokio",
+ "tracing",
  "want",
 ]
 
@@ -1539,6 +1541,26 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "tokio-io-timeout",
+]
+
+[[package]]
+name = "hyper-util"
+version = "0.0.0"
+source = "git+https://github.com/hyperium/hyper-util.git#1ed4c2ccdb23f576eb7024555f08b376b9d5c9eb"
+dependencies = [
+ "bytes",
+ "futures-channel",
+ "futures-util",
+ "http",
+ "http-body 1.0.0-rc.2",
+ "hyper 1.0.0-rc.4",
+ "once_cell",
+ "pin-project-lite",
+ "socket2 0.5.4",
+ "tokio",
+ "tower",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -2399,7 +2421,6 @@ dependencies = [
  "lazy_static",
  "proxy-balance",
  "proxy-common",
- "proxy-io",
  "proxy-pool",
 ]
 
@@ -2421,16 +2442,10 @@ dependencies = [
  "bytes",
  "http-body-util",
  "hyper 1.0.0-rc.4",
+ "hyper-util",
  "once_cell",
  "pin-project-lite",
  "tokio",
-]
-
-[[package]]
-name = "proxy-io"
-version = "0.1.0"
-dependencies = [
- "proxy-common",
 ]
 
 [[package]]
@@ -2440,7 +2455,6 @@ dependencies = [
  "config",
  "lazy_static",
  "proxy-common",
- "proxy-io",
  "rand 0.8.5",
 ]
 

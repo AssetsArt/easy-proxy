@@ -7,10 +7,11 @@ edition = "2021"
 
 [dependencies]
 bytes = "1"
-hyper = { git="https://github.com/hyperium/hyper", rvc="a8dcd7c", features = ["full"] }
+hyper = { version = "1.0.0-rc.4", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 pin-project-lite = "0.2"
 async-trait = "0.1"
 http-body-util = "0.1.0-rc.3"
+hyper-util = { git = "https://github.com/hyperium/hyper-util.git" }
 anyhow = "1"
 once_cell = "1"

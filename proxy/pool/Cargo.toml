@@ -8,6 +8,5 @@ edition = "2021"
 [dependencies]
 proxy-common = { path = "../common" }
 config = { path = "../../package/config" }
-proxy-io = { path = "../io" }
 lazy_static = "1"
 rand = "0.8"

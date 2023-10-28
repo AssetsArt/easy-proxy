@@ -1,8 +1,8 @@
 use proxy_common::{
     hyper::upgrade::Upgraded,
+    hyper_util::rt::TokioIo,
     tokio::{self, net::TcpStream},
 };
-use proxy_io::tokiort::TokioIo;
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
