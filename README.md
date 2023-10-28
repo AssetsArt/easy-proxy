@@ -53,6 +53,7 @@ To contribute or use Easy Proxy, follow these steps:
 The API documentation outlines the endpoints and how to interact with Easy Proxy.
 
 **Postman URL:** https://documenter.getpostman.com/view/5547449/2s9YRGxUKB
+
 **Swagger URL:** http://localhost:1337/apidoc
 
 ### Benchmarks on M1 pro 10 core 16GB | 2023-10-28
