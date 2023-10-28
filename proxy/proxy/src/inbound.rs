@@ -43,13 +43,16 @@ impl Inbound {
             };
             if sender.is_ready() {
                 if let Ok(res) = sender.send_request(req).await {
+                    drop(sender); // unlock
                     return Ok(res.map(|b| b.boxed()));
                 }
             } else if let Ok(()) = sender.ready().await {
                 if let Ok(res) = sender.send_request(req).await {
+                    drop(sender); // unlock
                     return Ok(res.map(|b| b.boxed()));
                 }
             }
+            drop(sender); // unlock
             Ok(bad_gateway("503 Service Temporarily Unavailable"))
         }
     }
