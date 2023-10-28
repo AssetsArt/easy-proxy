@@ -1,6 +1,5 @@
 pub mod models;
 
-use common::serde_json;
 use models::Service;
 use serde::{Deserialize, Serialize};
 pub use surrealdb::{self};
@@ -78,24 +77,44 @@ pub async fn reload_svc() {
     let db = get_database().await;
     let svc: Vec<models::Service> = db.disk.select("services").await.unwrap_or(vec![]);
     for s in svc {
-        let _: Vec<models::Service> = match db
+        let query = format!(
+            r#"
+                RETURN {{
+                    LET $services = (SELECT id FROM services WHERE name = $svc_name OR host = $svc_host);
+                    IF array::len($services) > 0 THEN
+                        (DELETE $services)
+                    END;
+                    LET $service = CREATE services CONTENT {{
+                        algorithm: $svc_algorithm,
+                        destination: $svc_destination,
+                        name: $svc_name,
+                        host: $svc_host,
+                        protocol: $svc_protocol,
+                    }};
+                    RETURN $service;
+                }};
+            "#
+        );
+        let _: Option<models::Service> = match db
             .memory
-            .create("services")
-            .content(serde_json::json!({
-                "algorithm": s.algorithm,
-                "destination": s.destination,
-                "name": s.name,
-                "host": s.host,
-                "protocol": s.protocol,
-            }))
+            .query(query)
+            .bind(("svc_name", &s.name))
+            .bind(("svc_host", &s.host))
+            .bind(("svc_algorithm", &s.algorithm))
+            .bind(("svc_destination", &s.destination))
+            .bind(("svc_protocol", &s.protocol))
             .await
         {
-            Ok(r) => r,
+            Ok(mut r) => {
+                // println!("r: {:#?}", r);
+                r.take(0).unwrap_or(None)
+            },
             Err(e) => {
                 println!("Error creating service: {}", e);
-                vec![]
+                None
             }
         };
+        // println!("Reload svc: {:#?}", svc);
     }
 
     // clean up svc
