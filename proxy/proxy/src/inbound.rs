@@ -34,7 +34,7 @@ impl Inbound {
         if Method::CONNECT == req.method() {
             connect::connect(addr, req).await
         } else {
-            let mut sender = match ManageConnection::get(addr.clone()).await {
+            let mut sender = match ManageConnection::get(addr.clone(), service.max_conn).await {
                 Ok(s) => s,
                 Err(e) => {
                     tracing::error!("{}", e);

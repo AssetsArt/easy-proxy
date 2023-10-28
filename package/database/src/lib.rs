@@ -86,6 +86,7 @@ pub async fn reload_svc() {
                 "destination": s.destination,
                 "name": s.name,
                 "host": s.host,
+                "protocol": s.protocol,
             }))
             .await
         {

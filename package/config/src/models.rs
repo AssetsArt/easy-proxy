@@ -10,8 +10,7 @@ pub struct Config {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Proxy {
-    pub addr: String,
-    pub max_open_connections: u16,
+    pub addr: String
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

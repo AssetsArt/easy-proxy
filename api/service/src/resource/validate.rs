@@ -49,20 +49,12 @@ fn destination_validate(
             return Some(common::response::json(json!(res), StatusCode::BAD_REQUEST));
         }
 
-        if dest.protocol.is_empty() {
+        if dest.max_conn == 0 {
             res.status = StatusCode::BAD_REQUEST.into();
-            res.message = "Destination protocol cannot be empty".into();
+            res.message = "Destination max connection cannot be empty".into();
             return Some(common::response::json(json!(res), StatusCode::BAD_REQUEST));
         }
 
-        if !PROTOCOL_SUPPORTED.contains(&dest.protocol.as_str()) {
-            res.status = StatusCode::BAD_REQUEST.into();
-            res.message = format!(
-                "Protocol not supported. Supported protocols: {:?}",
-                PROTOCOL_SUPPORTED
-            );
-            return Some(common::response::json(json!(res), StatusCode::BAD_REQUEST));
-        }
     }
     None
 }
@@ -91,6 +83,21 @@ pub fn validate_add(
 
     if let Some(res) = algorithm_validate(input.algorithm.as_str(), res) {
         return Some(res);
+    }
+
+    if input.protocol.is_empty() {
+        res.status = StatusCode::BAD_REQUEST.into();
+        res.message = "Destination protocol cannot be empty".into();
+        return Some(common::response::json(json!(res), StatusCode::BAD_REQUEST));
+    }
+
+    if !PROTOCOL_SUPPORTED.contains(&input.protocol.as_str()) {
+        res.status = StatusCode::BAD_REQUEST.into();
+        res.message = format!(
+            "Protocol not supported. Supported protocols: {:?}",
+            PROTOCOL_SUPPORTED
+        );
+        return Some(common::response::json(json!(res), StatusCode::BAD_REQUEST));
     }
 
     if input.host.is_empty() {

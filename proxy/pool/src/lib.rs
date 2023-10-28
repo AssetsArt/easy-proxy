@@ -50,8 +50,8 @@ lazy_static::lazy_static! {
 impl ManageConnection {
     pub async fn get(
         addr: String,
+        max_open_connections: u32
     ) -> Result<MutexGuard<'static, SendRequest<BoxBody<Bytes, hyper::Error>>>, anyhow::Error> {
-        let conf = config::get_config();
         let mut conn_ids = CONNECTIONS_IDS.lock().await;
         let conn = unsafe {
             match CONNECTIONS.get_mut() {
@@ -72,9 +72,7 @@ impl ManageConnection {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
             ManageConnection::new_connection(&mut (addr.clone(), id)).await;
-        } else if conn_ids.iter().filter(|(a, _)| a == &addr).count()
-            < conf.proxy.max_open_connections.into()
-        {
+        } else if conn_ids.iter().filter(|(a, _)| a == &addr).count() < max_open_connections as usize {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
             ManageConnection::new_connection(&mut (addr.clone(), id)).await;

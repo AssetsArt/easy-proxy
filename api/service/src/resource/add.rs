@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 pub struct Destination {
     pub ip: String,
     pub port: u16,
-    pub protocol: String,
     pub status: bool,
+    pub max_conn: u32,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -22,6 +22,7 @@ pub struct AddServiceBody {
     pub host: String,
     pub algorithm: String,
     pub destination: Vec<Destination>,
+    pub protocol: String,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -92,7 +93,8 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
             "algorithm": input.algorithm,
             "destination": input.destination,
             "name": input.name,
-            "host": input.host
+            "host": input.host,
+            "protocol": input.protocol,
         }))
         .await
     {
