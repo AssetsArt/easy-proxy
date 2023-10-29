@@ -1,34 +1,44 @@
 use super::{validate::validate_add, ServiceBodyInput};
 use common::{
-    axum::{body::Body, response::Response, Json},
+    axum::{body::Body, extract::Path, response::Response, Json},
     http::StatusCode,
     serde_json::{self, json, Value},
-    utoipa::{self, ToSchema},
+    utoipa::{self, IntoParams, ToSchema},
 };
-use database::models;
+use database::models::{self, Service};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct AddServiceResponse {
+pub struct UpdateServiceResponse {
     pub status: u16,
     pub message: String,
     pub data: Option<Vec<Value>>,
 }
 
+#[derive(Serialize, Deserialize, IntoParams, Clone)]
+pub struct UpdateParams {
+    pub svc_id: String,
+}
+
 #[utoipa::path(
-  post,
-  path = "/add",
+  put,
+  path = "/update/:svc_id",
   request_body = ServiceBodyInput,
+  params(UpdateParams),
   responses(
       (
           status = http::StatusCode::OK,
           description = "Successfully added",
-          body = AddServiceResponse
+          body = UpdateServiceResponse
       )
   ),
 )]
-pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Response<Body> {
-    let mut res = AddServiceResponse {
+pub async fn update(
+    _: middleware::Authorization,
+    Path(UpdateParams { svc_id }): Path<UpdateParams>,
+    mut input: Json<Value>,
+) -> Response<Body> {
+    let mut res = UpdateServiceResponse {
         status: StatusCode::NO_CONTENT.into(),
         message: "".into(),
         data: None,
@@ -51,17 +61,14 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
     let db = database::get_database().await;
     match db
         .disk
-        .query("SELECT * FROM services WHERE name = $name OR host = $host")
-        .bind(("name", &service_input.name))
-        .bind(("host", &service_input.host))
+        .select::<Option<Service>>(("services", svc_id.clone()))
         .await
     {
-        Ok(mut r) => {
-            let user: Option<models::Service> = r.take(0).unwrap_or(None);
-            if user.is_some() {
-                res.status = StatusCode::BAD_REQUEST.into();
-                res.message = "Name or host already exists".into();
-                return common::response::json(json!(res), StatusCode::BAD_REQUEST);
+        Ok(r) => {
+            if r.is_none() {
+                res.status = StatusCode::NOT_FOUND.into();
+                res.message = "Service not found".into();
+                return common::response::json(json!(res), StatusCode::NOT_FOUND);
             }
         }
         Err(e) => {
@@ -71,9 +78,9 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
         }
     };
 
-    let services: Vec<models::Service> = match db
+    let services: Option<models::Service> = match db
         .disk
-        .create("services")
+        .update(("services", svc_id))
         .content(serde_json::json!({
             "algorithm": service_input.algorithm,
             "destination": service_input.destination,
@@ -93,15 +100,10 @@ pub async fn add(_: middleware::Authorization, mut input: Json<Value>) -> Respon
 
     res.status = StatusCode::OK.into();
     res.message = "Successfully added".into();
-    res.data = Some(
-        services
-            .into_iter()
-            .map(|x| {
-                let mut x: Value = serde_json::to_value(x).unwrap();
-                x["id"] = x["id"].as_object().unwrap()["id"].as_object().unwrap()["String"].clone();
-                x
-            })
-            .collect(),
-    );
+    res.data = services.map(|x| {
+        let mut x: Value = serde_json::to_value(x).unwrap();
+        x["id"] = x["id"].as_object().unwrap()["id"].as_object().unwrap()["String"].clone();
+        vec![x]
+    });
     common::response::json(json!(res), StatusCode::OK)
 }

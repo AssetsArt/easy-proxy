@@ -1,5 +1,5 @@
 use common::axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 
@@ -22,6 +22,7 @@ impl Routes {
             "/service",
             Router::new()
                 .route("/add", post(resource::add))
+                .route("/update/:svc_id", put(resource::update))
                 .route("/reload", get(resource::reload)),
         );
 
