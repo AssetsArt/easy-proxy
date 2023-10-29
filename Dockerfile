@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # build stage
-FROM rust:slim as builder
+FROM rust:latest as builder 
+RUN apt update && apt install libclang-dev -y
 WORKDIR /app
 # copy app src
 COPY . .
@@ -8,7 +9,7 @@ COPY . .
 RUN RUSTFLAGS="-C target-cpu=native" cargo build --release
 
 # create release image
-FROM gcr.io/distroless/cc:nonroot
+FROM debian:latest
 
 ARG timezone=Asia/Bangkok
 
@@ -22,7 +23,7 @@ COPY --from=builder /app/target/release/runtime ./easy-proxy
 
 # expose default port
 EXPOSE 1337 
-EXPOSE 8080
+EXPOSE 8088
 
 # default run entrypoint
 CMD ["./easy-proxy"]
