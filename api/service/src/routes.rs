@@ -1,5 +1,5 @@
 use common::axum::{
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Router,
 };
 

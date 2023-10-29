@@ -33,7 +33,7 @@ pub struct DeleteParams {
 )]
 pub async fn delete(
     _: middleware::Authorization,
-    Path(DeleteParams { svc_id }): Path<DeleteParams>
+    Path(DeleteParams { svc_id }): Path<DeleteParams>,
 ) -> Response<Body> {
     let mut res = DeleteServiceResponse {
         status: StatusCode::NO_CONTENT.into(),
@@ -61,11 +61,7 @@ pub async fn delete(
         }
     };
 
-    let services: Option<models::Service> = match db
-        .disk
-        .delete(("services", svc_id))
-        .await
-    {
+    let services: Option<models::Service> = match db.disk.delete(("services", svc_id)).await {
         Ok(r) => r,
         Err(e) => {
             res.status = StatusCode::INTERNAL_SERVER_ERROR.into();
