@@ -16,7 +16,8 @@ pub const BASE_PATH: &str = "/api/service";
     paths(
         resource::add,
         resource::update,
-        resource::reload
+        resource::reload,
+        resource::delete
     ),
     modifiers(&ServerBase),
     components(
@@ -25,7 +26,8 @@ pub const BASE_PATH: &str = "/api/service";
             resource::ServiceBodyInput,
             resource::AddServiceResponse,
             resource::UpdateServiceResponse,
-            resource::ReloadResponse
+            resource::ReloadResponse,
+            resource::DeleteServiceResponse
         )
     )
 )]
