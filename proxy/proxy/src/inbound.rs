@@ -38,22 +38,36 @@ impl Inbound {
                 Ok(s) => s,
                 Err(e) => {
                     tracing::error!("{}", e);
-                    return Ok(service_unavailable("503 Service Temporarily Unavailable"));
+                    return Ok(service_unavailable(e.to_string()));
                 }
             };
             if sender.is_ready() {
-                if let Ok(res) = sender.send_request(req).await {
-                    drop(sender); // unlock
-                    return Ok(res.map(|b| b.boxed()));
+                match sender.send_request(req).await {
+                    Ok(res) => {
+                        drop(sender); // unlock
+                        return Ok(res.map(|b| b.boxed()));
+                    }
+                    Err(e) => {
+                        tracing::error!("{}", e);
+                        drop(sender); // unlock
+                        return Ok(bad_gateway(e.to_string()));
+                    }
                 }
             } else if let Ok(()) = sender.ready().await {
-                if let Ok(res) = sender.send_request(req).await {
-                    drop(sender); // unlock
-                    return Ok(res.map(|b| b.boxed()));
+                match sender.send_request(req).await {
+                    Ok(res) => {
+                        drop(sender); // unlock
+                        return Ok(res.map(|b| b.boxed()));
+                    }
+                    Err(e) => {
+                        tracing::error!("{}", e);
+                        drop(sender); // unlock
+                        return Ok(bad_gateway(e.to_string()));
+                    }
                 }
             }
             drop(sender); // unlock
-            Ok(bad_gateway("503 Service Temporarily Unavailable"))
+            Ok(service_unavailable("503 Service Temporarily Unavailable"))
         }
     }
 }
