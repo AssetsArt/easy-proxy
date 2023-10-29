@@ -10,7 +10,7 @@ pub struct Config {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Proxy {
-    pub addr: String
+    pub addr: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]

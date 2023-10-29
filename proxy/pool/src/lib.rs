@@ -38,8 +38,14 @@ static mut TEMP_CONNECTIONS: OnceLock<
 
 pub fn init() {
     unsafe {
-        CONNECTIONS.get_or_init(|| Vec::new());
-        TEMP_CONNECTIONS.get_or_init(|| HashMap::new());
+        CONNECTIONS.get_or_init(|| {
+            println!("Init connection");
+            Vec::new()
+        });
+        TEMP_CONNECTIONS.get_or_init(|| {
+            println!("Init temp connection");
+            HashMap::new()
+        });
     }
 }
 
@@ -50,7 +56,7 @@ lazy_static::lazy_static! {
 impl ManageConnection {
     pub async fn get(
         addr: String,
-        max_open_connections: u32
+        max_open_connections: u32,
     ) -> Result<MutexGuard<'static, SendRequest<BoxBody<Bytes, hyper::Error>>>, anyhow::Error> {
         let mut conn_ids = CONNECTIONS_IDS.lock().await;
         let conn = unsafe {
@@ -72,7 +78,9 @@ impl ManageConnection {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
             ManageConnection::new_connection(&mut (addr.clone(), id)).await;
-        } else if conn_ids.iter().filter(|(a, _)| a == &addr).count() < max_open_connections as usize {
+        } else if conn_ids.iter().filter(|(a, _)| a == &addr).count()
+            < max_open_connections as usize
+        {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
             ManageConnection::new_connection(&mut (addr.clone(), id)).await;
