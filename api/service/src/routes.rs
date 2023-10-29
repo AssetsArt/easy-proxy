@@ -22,6 +22,7 @@ impl Routes {
             "/service",
             Router::new()
                 .route("/add", post(resource::add))
+                .route("/search", post(resource::search))
                 .route("/update/:svc_id", put(resource::update))
                 .route("/delete/:svc_id", delete(resource::delete))
                 .route("/reload", get(resource::reload)),
