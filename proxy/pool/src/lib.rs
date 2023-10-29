@@ -1,3 +1,4 @@
+use common::tracing;
 use proxy_common::{
     anyhow,
     bytes::Bytes,
@@ -39,11 +40,13 @@ static mut TEMP_CONNECTIONS: OnceLock<
 pub fn init() {
     unsafe {
         CONNECTIONS.get_or_init(|| {
-            println!("Init connection");
+            // println!("Init connection");
+            tracing::info!("Init connection");
             Vec::new()
         });
         TEMP_CONNECTIONS.get_or_init(|| {
-            println!("Init temp connection");
+            // println!("Init temp connection");
+            tracing::info!("Init temp connection");
             HashMap::new()
         });
     }
@@ -77,13 +80,27 @@ impl ManageConnection {
         if conn_ids.is_empty() {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
-            ManageConnection::new_connection(&mut (addr.clone(), id)).await;
+            match ManageConnection::new_connection(&mut (addr.clone(), id)).await {
+                Ok(_) => {}
+                Err(err) => {
+                    conn_ids.retain(|(a, i_id)| a != &addr.clone() && i_id != &id.clone());
+                    drop(conn_ids);
+                    return Err(err);
+                }
+            }
         } else if conn_ids.iter().filter(|(a, _)| a == &addr).count()
             < max_open_connections as usize
         {
             let id = random_id();
             conn_ids.push((addr.clone(), id));
-            ManageConnection::new_connection(&mut (addr.clone(), id)).await;
+            match ManageConnection::new_connection(&mut (addr.clone(), id)).await {
+                Ok(_) => {}
+                Err(err) => {
+                    conn_ids.retain(|(a, i_id)| a != &addr.clone() && i_id != &id.clone());
+                    drop(conn_ids);
+                    return Err(err);
+                }
+            }
         } else {
             is_max_connections = true;
         }
@@ -104,7 +121,13 @@ impl ManageConnection {
                     }
                 }
             };
-            let sender = create_conn(addr.clone()).await;
+            let sender = match create_conn(addr.clone()).await {
+                Ok(s) => s,
+                Err(err) => {
+                    drop(conn_ids);
+                    return Err(err);
+                }
+            };
             let sender = Mutex::new(sender);
             temp_conn.insert(addr.clone(), sender);
             if let Some(sender) = temp_conn.get(&addr) {
@@ -134,21 +157,33 @@ impl ManageConnection {
         Err(anyhow::anyhow!("Connection not found"))
     }
 
-    async fn new_connection(row: &mut (String, u64)) {
+    async fn new_connection(row: &mut (String, u64)) -> Result<bool, anyhow::Error> {
         let (addr, id) = row;
-        let stream = TcpStream::connect(addr.clone()).await.unwrap();
+        let stream = match TcpStream::connect(addr.clone()).await {
+            Ok(s) => s,
+            Err(err) => {
+                return Err(anyhow::anyhow!("Connection failed: {:?} -> {}", err, addr));
+            }
+        };
         let io = TokioIo::new(stream);
-        let (sender, conn) = Builder::new()
+        let (sender, conn) = match Builder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
             .handshake(io)
             .await
-            .unwrap();
+        {
+            Ok((s, c)) => (s, c),
+            Err(err) => {
+                return Err(anyhow::anyhow!("Connection failed: {:?} -> {}", err, addr));
+            }
+        };
 
         let conns = unsafe {
             match CONNECTIONS.get_mut() {
                 Some(c) => c,
-                None => return,
+                None => {
+                    return Err(anyhow::anyhow!("Connection pool is not initialized"));
+                }
             }
         };
         conns.push((*id, Mutex::new(sender)));
@@ -168,20 +203,34 @@ impl ManageConnection {
             conns.retain(|(i_id, _)| i_id != &id);
             let mut conn_ids = CONNECTIONS_IDS.lock().await;
             conn_ids.retain(|(a, i_id)| a != &addr && i_id != &id);
+            drop(conn_ids);
             println!("Disconnect: {} -> {}", addr, id);
         });
+        Ok(true)
     }
 }
 
-async fn create_conn(addr: String) -> SendRequest<BoxBody<Bytes, hyper::Error>> {
-    let stream = TcpStream::connect(addr.clone()).await.unwrap();
+async fn create_conn(
+    addr: String,
+) -> Result<SendRequest<BoxBody<Bytes, hyper::Error>>, anyhow::Error> {
+    let stream = match TcpStream::connect(addr.clone()).await {
+        Ok(s) => s,
+        Err(err) => {
+            return Err(anyhow::anyhow!("Connection failed: {:?} -> {}", err, addr));
+        }
+    };
     let io = TokioIo::new(stream);
-    let (sender, conn) = Builder::new()
+    let (sender, conn) = match Builder::new()
         .preserve_header_case(true)
         .title_case_headers(true)
         .handshake(io)
         .await
-        .unwrap();
+    {
+        Ok((s, c)) => (s, c),
+        Err(err) => {
+            return Err(anyhow::anyhow!("Connection failed: {:?} -> {}", err, addr));
+        }
+    };
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {:?}", err);
@@ -195,5 +244,5 @@ async fn create_conn(addr: String) -> SendRequest<BoxBody<Bytes, hyper::Error>> 
         temp_conn.remove(&addr);
         println!("Disconnect temp: {}", addr);
     });
-    sender
+    Ok(sender)
 }

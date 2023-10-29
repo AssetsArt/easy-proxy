@@ -2452,6 +2452,7 @@ dependencies = [
 name = "proxy-pool"
 version = "0.1.0"
 dependencies = [
+ "common",
  "config",
  "lazy_static",
  "proxy-common",

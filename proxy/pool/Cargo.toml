@@ -10,3 +10,4 @@ proxy-common = { path = "../common" }
 config = { path = "../../package/config" }
 lazy_static = "1"
 rand = "0.8"
+common = { path = "../../package/common" }
