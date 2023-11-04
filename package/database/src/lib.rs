@@ -4,7 +4,7 @@ use models::Service;
 use serde::{Deserialize, Serialize};
 pub use surrealdb::{self};
 use surrealdb::{
-    engine::local::{Db, Mem, SpeeDb},
+    engine::local::{Db, Mem, SpeeDb, TiKv},
     sql::Thing,
     Surreal,
 };
@@ -50,7 +50,7 @@ pub async fn get_database() -> &'static Database {
                     .await
                     .unwrap();
             } else if conf.database.engine == config::models::DatabaseEngine::Tikv {
-                disk = Surreal::new::<SpeeDb>(&conf.database.host).await.unwrap();
+                disk = Surreal::new::<TiKv>(&conf.database.host).await.unwrap();
             } else {
                 panic!("unknown database engine");
             }
