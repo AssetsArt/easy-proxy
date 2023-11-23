@@ -1,6 +1,5 @@
-use axum::{body::Body, response::Response};
+use axum::{body::Body, response::Response, http::StatusCode};
 use futures::TryStreamExt;
-use http::StatusCode;
 use serde_json::Value;
 
 pub fn json(data: Value, status: StatusCode) -> Response<Body> {

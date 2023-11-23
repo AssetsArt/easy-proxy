@@ -1,6 +1,5 @@
 use common::{
-    axum::{self, extract::FromRequestParts},
-    http::{request::Parts, StatusCode},
+    axum::{self, extract::FromRequestParts, http::{StatusCode, request::Parts}},
     response::json,
     serde_json::{self},
 };

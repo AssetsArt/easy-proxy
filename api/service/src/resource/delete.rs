@@ -1,6 +1,5 @@
 use common::{
-    axum::{body::Body, extract::Path, response::Response},
-    http::StatusCode,
+    axum::{body::Body, extract::Path, response::Response, http::StatusCode},
     serde_json::{self, json, Value},
     utoipa::{self, IntoParams, ToSchema},
 };

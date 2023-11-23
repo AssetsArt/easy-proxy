@@ -1,12 +1,11 @@
 pub mod response;
 
 // export dependencies
-pub use axum::{self};
-pub use futures::{self};
-pub use http::{self};
-pub use regex::{self};
-pub use serde_json::{self};
-pub use tokio::{self};
-pub use tracing::{self};
-pub use tracing_subscriber::{self};
-pub use utoipa::{self};
+pub use axum;
+pub use futures;
+pub use regex;
+pub use serde_json;
+pub use tokio;
+pub use tracing;
+pub use tracing_subscriber;
+pub use utoipa;

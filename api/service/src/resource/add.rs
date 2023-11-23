@@ -1,7 +1,6 @@
 use super::{validate::validate_add, ServiceBodyInput};
 use common::{
-    axum::{body::Body, response::Response, Json},
-    http::StatusCode,
+    axum::{body::Body, response::Response, Json, http::StatusCode},
     serde_json::{self, json, Value},
     utoipa::{self, ToSchema},
 };
