@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # build stage
 FROM ghcr.io/rust-lang/rust:nightly-bookworm-slim as builder 
-RUN apt update && apt install libclang-dev -y
+RUN apt update && apt install g++ libclang-dev -y
 WORKDIR /app
 # copy app src
 COPY . .
