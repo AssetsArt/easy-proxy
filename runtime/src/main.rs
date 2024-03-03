@@ -12,6 +12,7 @@ fn main() {
     tracing_subscriber::fmt::init();
     // initialize the config
     let _ = config::app_config();
+    let _ = config::proxy::read_config();
 
     // create a new proxy
     proxy::Proxy::new()

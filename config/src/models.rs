@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct AppConfig {
     pub proxy: Proxy,
     pub pingora: Pingora,
+    pub providers: Vec<Provider>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -22,4 +23,31 @@ pub struct Pingora {
     pub user: Option<String>,
     pub group: Option<String>,
     pub ca_file: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct Provider {
+    pub name: String,
+    pub path: Option<String>,
+    pub watch: Option<bool>,
+}
+
+impl From<&Provider> for ProviderFiles {
+    fn from(p: &Provider) -> Self {
+        ProviderFiles {
+            name: p.name.clone(),
+            path: p
+                .path
+                .clone()
+                .unwrap_or_else(|| "/etc/easy-proxy/dynamic".to_string()),
+            watch: p.watch.unwrap_or_else(|| true),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderFiles {
+    pub name: String,
+    pub path: String,
+    pub watch: bool,
 }

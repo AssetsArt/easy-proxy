@@ -1,4 +1,5 @@
 pub mod models;
+pub mod proxy;
 
 // use
 use std::sync::Once;

@@ -1,16 +1,8 @@
 use async_trait::async_trait;
+use config::proxy::BackendType;
 use pingora::{
-    http::{RequestHeader, ResponseHeader},
-    lb::{
-        health_check::{HealthCheck, HttpHealthCheck},
-        selection::{
-            algorithms::RoundRobin,
-            consistent::{KetamaHashing, OwnedNodeIterator},
-            weighted::{Weighted, WeightedIterator},
-            BackendIter, BackendSelection,
-        },
-        Backend,
-    },
+    http::ResponseHeader,
+    lb::selection::{weighted::WeightedIterator, BackendIter, RoundRobin},
     protocols::http::HttpTask,
     proxy::{self, ProxyHttp, Session},
     server::{
@@ -18,10 +10,6 @@ use pingora::{
         Server,
     },
     upstreams::peer::HttpPeer,
-};
-use std::{
-    collections::BTreeSet,
-    sync::{Arc, Once},
 };
 use tracing;
 
@@ -106,7 +94,11 @@ impl ProxyHttp for Proxy {
             .get_header("x-easy-proxy-backend")
             .expect("Backend not found");
         let backend = backend.to_str().expect("Backend not found").to_string();
-        let peer = Box::new(HttpPeer::new(backend, false, "localhost".to_string()));
+        let mut host = "localhost";
+        if let Some(s) = session.get_header("host") {
+            host = s.to_str().expect("SNI not found");
+        }
+        let peer = Box::new(HttpPeer::new(backend, false, host.to_string()));
         Ok(peer)
     }
 
@@ -115,67 +107,50 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
-        // // println!("Request Filter");
-        // session.set_keepalive(None);
-        // // headers
-        // let mut headers = ResponseHeader::build(200, None).unwrap();
-        // headers.append_header("x-easy-proxy", "true").unwrap();
-        // let headers = HttpTask::Header(Box::new(headers), true);
-        // // body
-        // let body = HttpTask::Body(Some("Hello, From Easy Proxy!".as_bytes().into()), true);
-        // session.response_duplex_vec(vec![headers, body]).await.unwrap();
-        let backends = get_backends();
-        let backend = backends.next().unwrap();
-        let mut http_check = HttpHealthCheck::new("localhost", false);
-        http_check.req.set_uri(http::Uri::from_static("/health"));
-        match http_check.check(&backend).await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error checking backend: {}", e);
-                // backend  = backends.next();
-                session.set_keepalive(None);
-                // SAFETY: Should be safe to unwrap here because we are sure that the header is set
-                let headers = ResponseHeader::build(502, None).unwrap();
-                let headers = HttpTask::Header(Box::new(headers), true);
-                let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
-                let _ = session
-                    .response_duplex_vec(vec![headers, body])
-                    .await
-                    .is_ok();
-                return Ok(true);
-            }
+        let mut host = "localhost";
+        if let Some(s) = session.get_header("host") {
+            host = s.to_str().expect("SNI not found");
         }
-        session
-            .req_header_mut()
-            .append_header("x-easy-proxy-backend", backend.addr.to_string())
-            .unwrap();
+        println!("Host: {:?}", host);
+        let path = session.req_header().uri.path();
+        let proxy_config = config::proxy::get_backends().unwrap();
+        let routes = proxy_config.routes.get(host).unwrap();
+        let svc_path = routes.paths.get(path).unwrap();
+        let backend = routes.services.get(&svc_path.service.name).unwrap();
+        match backend {
+            BackendType::RoundRobin(iter) => {
+                let backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
+                println!("Backend: {:?}", backend);
+                session
+                    .req_header_mut()
+                    .append_header("x-easy-proxy-backend", backend.addr.to_string())
+                    .unwrap();
+            }
+            _ => {}
+        }
+        // let mut http_check = HttpHealthCheck::new(host, false);
+        // http_check.req.set_uri(http::Uri::from_static("/health"));
+        // match http_check.check(&backend).await {
+        //     Ok(_) => {}
+        //     Err(e) => {
+        //         tracing::error!("Error checking backend: {}", e);
+        //         // backend  = backends.next();
+        //         session.set_keepalive(None);
+        //         // SAFETY: Should be safe to unwrap here because we are sure that the header is set
+        //         let headers = ResponseHeader::build(502, None).unwrap();
+        //         let headers = HttpTask::Header(Box::new(headers), true);
+        //         let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
+        //         let _ = session
+        //             .response_duplex_vec(vec![headers, body])
+        //             .await
+        //             .is_ok();
+        //         return Ok(true);
+        //     }
+        // }
+        // session
+        //     .req_header_mut()
+        //     .append_header("x-easy-proxy-backend", backend.addr.to_string())
+        //     .unwrap();
         Ok(false)
     }
-}
-
-static INIT_BACKENS: Once = Once::new();
-// static mut GLOBAL_BACKENS: *mut OwnedNodeIterator = std::ptr::null_mut();
-static mut GLOBAL_BACKENS: *mut WeightedIterator<fnv::FnvHasher> = std::ptr::null_mut();
-// static mut GLOBAL_BACKENS: *mut WeightedIterator<RoundRobin> = std::ptr::null_mut();
-
-pub fn get_backends() -> &'static mut WeightedIterator<fnv::FnvHasher> {
-    INIT_BACKENS.call_once(|| {
-        let b1 = Backend {
-            addr: "127.0.0.1:3002".parse().unwrap(),
-            weight: 1,
-        };
-        // let b2 = Backend::new("172.20.10.2:3000").unwrap();
-        // let b3 = Backend::new("127.0.0.1:3000").unwrap();
-        let backends = BTreeSet::from_iter([b1.clone()]);
-        // let hash = Arc::new(KetamaHashing::build(&backends));
-        let hash: Arc<Weighted> = Arc::new(Weighted::build(&backends));
-        // let hash: Arc<Weighted<RoundRobin>> = Arc::new(Weighted::build(&backends));
-
-        // export the iterator to the global variable
-        let iter = hash.iter(b"backends_001");
-        unsafe {
-            GLOBAL_BACKENS = Box::into_raw(Box::new(iter));
-        }
-    });
-    unsafe { &mut *GLOBAL_BACKENS }
 }
