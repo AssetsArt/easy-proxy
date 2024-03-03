@@ -1,7 +1,7 @@
 # Description: Service proxy configuration
 services:
   - name: backend_service
-    algorithm: round_robin # round_robin, random, consistent
+    algorithm: round_robin # round_robin, random, consistent, weighted
     endpoints:
       - ip: 127.0.0.1:3002
         weight: 1 # Optional

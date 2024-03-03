@@ -11,6 +11,7 @@ Easy Proxy supports the following features:
   - [x] RoundRobin
   - [ ] Random
   - [ ] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
+  - [] Weighted
 - [ ] SSL Termination
 - [ ] Caching
 - [ ] Filtering
