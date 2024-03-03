@@ -5,16 +5,28 @@ resolver = "2"
 
 members = [
   "runtime",
-  "package/common",
-  "package/database",
-  "package/config",
-  "package/middleware",
-  "package/jwt",
-  "api/auth",
-  "api/setup",
-  "api/service",
-  "proxy/common",
-  "proxy/proxy",
-  "proxy/balance",
-  "proxy/pool"
+  "proxy", 
+  "config"
 ]
+
+[workspace.dependencies]
+lazy_static = "1.4"
+anyhow = "1.0"
+futures-util = "0.3"
+mimalloc = "0.1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+async-trait="0.1"
+pingora = { version = "0.1", features = [ "lb" ] }
+serde_yaml = "0.9"
+serde = { version="1", features = ["derive"] }
+fnv = "1"
+http = "1"
+
+[profile.release]
+strip = true
+opt-level = "z"  # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"

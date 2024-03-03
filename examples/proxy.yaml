@@ -1,0 +1,14 @@
+# Description: Service proxy configuration
+services:
+  - name: backend_service
+    endpoints:
+      - 127.0.0.1:3002
+
+routes:
+  - host: example.com
+    paths:
+      - pathType: Prefix
+        path: /api/v2
+        service:
+          rewrite: /service/v2
+          name: backend_service

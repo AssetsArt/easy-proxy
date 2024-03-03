@@ -1,13 +1,15 @@
 [package]
-name = "runtime"
+name = "proxy"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-proxy = { path = "../proxy" }
 config = { path = "../config" }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+pingora = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-mimalloc = { workspace = true }
+fnv = { workspace = true }
+http = { workspace = true }
