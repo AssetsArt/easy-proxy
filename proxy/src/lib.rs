@@ -2,7 +2,11 @@ use async_trait::async_trait;
 use config::proxy::BackendType;
 use pingora::{
     http::ResponseHeader,
-    lb::selection::{weighted::WeightedIterator, BackendIter, RoundRobin},
+    lb::{
+        health_check::{HealthCheck, HttpHealthCheck},
+        selection::{weighted::WeightedIterator, BackendIter, RoundRobin},
+        Backend,
+    },
     protocols::http::HttpTask,
     proxy::{self, ProxyHttp, Session},
     server::{
@@ -111,46 +115,50 @@ impl ProxyHttp for Proxy {
         if let Some(s) = session.get_header("host") {
             host = s.to_str().expect("SNI not found");
         }
-        println!("Host: {:?}", host);
+        // println!("Host: {:?}", host);
         let path = session.req_header().uri.path();
         let proxy_config = config::proxy::get_backends().unwrap();
         let routes = proxy_config.routes.get(host).unwrap();
         let svc_path = routes.paths.get(path).unwrap();
-        let backend = routes.services.get(&svc_path.service.name).unwrap();
-        match backend {
+        let service = routes.services.get(&svc_path.service.name).unwrap();
+        let backend: &Backend;
+        match service {
             BackendType::RoundRobin(iter) => {
-                let backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
-                println!("Backend: {:?}", backend);
-                session
-                    .req_header_mut()
-                    .append_header("x-easy-proxy-backend", backend.addr.to_string())
-                    .unwrap();
+                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
             }
-            _ => {}
+            BackendType::Weighted(iter) => {
+                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
+            }
+            BackendType::Consistent(iter) => {
+                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
+            }
+            BackendType::Random(iter) => {
+                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
+            }
         }
-        // let mut http_check = HttpHealthCheck::new(host, false);
-        // http_check.req.set_uri(http::Uri::from_static("/health"));
-        // match http_check.check(&backend).await {
-        //     Ok(_) => {}
-        //     Err(e) => {
-        //         tracing::error!("Error checking backend: {}", e);
-        //         // backend  = backends.next();
-        //         session.set_keepalive(None);
-        //         // SAFETY: Should be safe to unwrap here because we are sure that the header is set
-        //         let headers = ResponseHeader::build(502, None).unwrap();
-        //         let headers = HttpTask::Header(Box::new(headers), true);
-        //         let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
-        //         let _ = session
-        //             .response_duplex_vec(vec![headers, body])
-        //             .await
-        //             .is_ok();
-        //         return Ok(true);
-        //     }
-        // }
-        // session
-        //     .req_header_mut()
-        //     .append_header("x-easy-proxy-backend", backend.addr.to_string())
-        //     .unwrap();
+        let mut http_check = HttpHealthCheck::new(host, false);
+        http_check.req.set_uri(http::Uri::from_static("/health"));
+        match http_check.check(&backend).await {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Error checking backend: {}", e);
+                // backend  = backends.next();
+                session.set_keepalive(None);
+                // SAFETY: Should be safe to unwrap here because we are sure that the header is set
+                let headers = ResponseHeader::build(502, None).unwrap();
+                let headers = HttpTask::Header(Box::new(headers), true);
+                let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
+                let _ = session
+                    .response_duplex_vec(vec![headers, body])
+                    .await
+                    .is_ok();
+                return Ok(true);
+            }
+        }
+        session
+            .req_header_mut()
+            .append_header("x-easy-proxy-backend", backend.addr.to_string())
+            .unwrap();
         Ok(false)
     }
 }
