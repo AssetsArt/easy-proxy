@@ -128,6 +128,10 @@ impl ProxyHttp for Proxy {
                 return service_unavailable(session).await;
             }
         };
+        let mut path = path;
+        if let Ok(r) = routes.route.prefix.at(path) {
+            path = r.value;
+        }
         let svc_path = match routes.paths.get(path) {
             Some(val) => val,
             None => {
@@ -229,13 +233,15 @@ impl ProxyHttp for Proxy {
             }
         }
         let query = session.req_header().uri.query();
+        let old_path = session.req_header().uri.path();
         if let Some(rewrite) = svc_path.service.rewrite.clone() {
+            let rewrite = old_path.replace(svc_path.path.as_str(), rewrite.as_str());
             let mut uri = rewrite;
             if let Some(q) = query {
                 uri.push('?');
                 uri.push_str(q);
             }
-            if uri.is_empty() {
+            if !uri.is_empty() {
                 let rewrite = match http::uri::Uri::builder().path_and_query(uri).build() {
                     Ok(val) => val,
                     Err(e) => {
@@ -243,7 +249,7 @@ impl ProxyHttp for Proxy {
                         return service_unavailable(session).await;
                     }
                 };
-                session.req_header_mut().set_uri(rewrite);
+                session.req_header_mut().set_uri(rewrite.clone());
             }
         }
         session

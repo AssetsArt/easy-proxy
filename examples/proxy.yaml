@@ -15,6 +15,11 @@ routes:
       - name: x-custom-header # no case sensitive
         value: "123" # olny string
     paths:
+      - pathType: Exact # Exact, Prefix
+        path: /api/v1
+        service:
+          rewrite: /service/v1 # Optional
+          name: backend_service
       - pathType: Prefix # Exact, Prefix
         path: /api/v2
         service:

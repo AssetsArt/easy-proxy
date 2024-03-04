@@ -21,7 +21,7 @@ use std::{
     sync::{Arc, Once},
 };
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct ProxyConfigFile {
     pub services: Option<Vec<Service>>,
     pub routes: Option<Vec<Route>>,
@@ -41,12 +41,14 @@ pub struct Endpoint {
     pub weight: Option<u16>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Route {
     pub host: String,
     pub paths: Vec<SvcPath>,
     pub headers: Option<Vec<Header>>,
     pub del_headers: Option<Vec<String>>,
+    #[serde(skip)]
+    pub prefix: matchit::Router<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -81,12 +83,10 @@ pub enum BackendType {
     Random(*mut WeightedIterator<Random>),
 }
 
-#[derive(Debug)]
 pub struct ProxyConfig {
     pub routes: HashMap<String, ProxyRoute>,
 }
 
-#[derive(Debug)]
 pub struct ProxyRoute {
     pub route: Route,
     pub paths: HashMap<String, SvcPath>,
@@ -198,10 +198,20 @@ pub fn read_file(path: String) {
     for conf in proxy_config {
         if let Some(routes) = conf.routes {
             for route in routes {
+                let mut route = route.clone();
                 let mut paths = HashMap::new();
+                let mut prefix = matchit::Router::new();
                 for path in route.paths.clone() {
-                    paths.insert(path.path.clone(), path);
+                    if path.path_type == "Prefix" {
+                        let match_path = format!("{}/:path", path.path);
+                        let _ = prefix.insert(match_path, path.path.clone()).is_ok();
+                        paths.insert(path.path.clone(), path);
+                    } else {
+                        let _ = prefix.insert(path.path.clone(), path.path.clone()).is_ok();
+                        paths.insert(path.path.clone(), path);
+                    }
                 }
+                route.prefix = prefix;
                 let mut p_services: HashMap<String, BackendType> = HashMap::new();
                 if let Some(services) = conf.services.clone() {
                     for service in services {

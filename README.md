@@ -5,12 +5,20 @@
 ## Features
 
 Easy Proxy supports the following features:
-
-- [x] Load Balancing
+- Routing
+  - [x] Host-based routing
+  - [x] Remove headers
+  - [x] Add headers
+  - [x] Rewrite by path
+  - [x] Path matching Exact, Prefix
+- Services
+  - [x] Ip and Port
+  - [x] Weight
+- Load Balancing
   - [x] RoundRobin
-  - [ ] Random
-  - [ ] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
-  - [ ] Weighted
+  - [x] Random
+  - [x] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
+  - [x] Weighted
 - [ ] SSL Termination
 - [ ] Caching
 - [ ] Filtering

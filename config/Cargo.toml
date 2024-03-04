@@ -11,5 +11,4 @@ serde = { workspace = true }
 pingora = { workspace = true }
 fnv = { workspace = true }
 notify = { workspace = true }
-once_cell = { workspace = true }
-tokio = { workspace = true }
+matchit = { workspace = true }
