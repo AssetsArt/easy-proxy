@@ -9,6 +9,11 @@ services:
         
 routes:
   - host: localhost:8088
+    del_headers:
+      - accept
+    headers:
+      - name: x-custom-header # no case sensitive
+        value: "123" # olny string
     paths:
       - pathType: Prefix # Exact, Prefix
         path: /api/v2

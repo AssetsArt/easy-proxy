@@ -1,13 +1,16 @@
 use crate::models::ProviderFiles;
 use notify::{self, Event, Watcher};
-use pingora::lb::{
-    selection::{
-        algorithms::{Random, RoundRobin},
-        consistent::{KetamaHashing, OwnedNodeIterator},
-        weighted::{Weighted, WeightedIterator},
-        BackendSelection,
+use pingora::{
+    lb::{
+        selection::{
+            algorithms::{Random, RoundRobin},
+            consistent::{KetamaHashing, OwnedNodeIterator},
+            weighted::{Weighted, WeightedIterator},
+            BackendSelection,
+        },
+        Backend,
     },
-    Backend,
+    protocols::l4::socket::SocketAddr,
 };
 use serde::Deserialize;
 use std::{
@@ -42,6 +45,14 @@ pub struct Endpoint {
 pub struct Route {
     pub host: String,
     pub paths: Vec<SvcPath>,
+    pub headers: Option<Vec<Header>>,
+    pub del_headers: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Header {
+    pub name: String,
+    pub value: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -194,16 +205,23 @@ pub fn read_file(path: String) {
                 let mut p_services: HashMap<String, BackendType> = HashMap::new();
                 if let Some(services) = conf.services.clone() {
                     for service in services {
+                        let mut backends: BTreeSet<Backend> = BTreeSet::new();
+                        for e in service.endpoints {
+                            let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
+                                Ok(val) => val,
+                                Err(e) => {
+                                    println!("Unable to parse address: {:?}", e);
+                                    continue;
+                                }
+                            };
+                            backends.insert(Backend {
+                                addr,
+                                weight: e.weight.unwrap_or(1) as usize,
+                            });
+                        }
+
                         match service.algorithm.as_str() {
                             "round_robin" => {
-                                let backends: BTreeSet<Backend> = service
-                                    .endpoints
-                                    .iter()
-                                    .map(|e| Backend {
-                                        addr: format!("{}:{}", e.ip, e.port).parse().unwrap(),
-                                        weight: e.weight.unwrap_or(1) as usize,
-                                    })
-                                    .collect();
                                 let hash: Arc<Weighted<RoundRobin>> =
                                     Arc::new(Weighted::build(&backends));
                                 p_services.insert(
@@ -214,14 +232,6 @@ pub fn read_file(path: String) {
                                 );
                             }
                             "weighted" => {
-                                let backends: BTreeSet<Backend> = service
-                                    .endpoints
-                                    .iter()
-                                    .map(|e| Backend {
-                                        addr: format!("{}:{}", e.ip, e.port).parse().unwrap(),
-                                        weight: e.weight.unwrap_or(1) as usize,
-                                    })
-                                    .collect();
                                 let hash: Arc<Weighted> = Arc::new(Weighted::build(&backends));
                                 p_services.insert(
                                     service.name.clone(),
@@ -231,14 +241,6 @@ pub fn read_file(path: String) {
                                 );
                             }
                             "consistent" => {
-                                let backends: BTreeSet<Backend> = service
-                                    .endpoints
-                                    .iter()
-                                    .map(|e| Backend {
-                                        addr: format!("{}:{}", e.ip, e.port).parse().unwrap(),
-                                        weight: e.weight.unwrap_or(1) as usize,
-                                    })
-                                    .collect();
                                 let hash = Arc::new(KetamaHashing::build(&backends));
                                 p_services.insert(
                                     service.name.clone(),
@@ -248,14 +250,6 @@ pub fn read_file(path: String) {
                                 );
                             }
                             "random" => {
-                                let backends: BTreeSet<Backend> = service
-                                    .endpoints
-                                    .iter()
-                                    .map(|e| Backend {
-                                        addr: format!("{}:{}", e.ip, e.port).parse().unwrap(),
-                                        weight: e.weight.unwrap_or(1) as usize,
-                                    })
-                                    .collect();
                                 let hash: Arc<Weighted<Random>> =
                                     Arc::new(Weighted::build(&backends));
                                 p_services.insert(

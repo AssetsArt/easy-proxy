@@ -3,7 +3,7 @@ use config::proxy::BackendType;
 use pingora::{
     http::ResponseHeader,
     lb::{
-        health_check::{HealthCheck, HttpHealthCheck},
+        // health_check::{HealthCheck, HttpHealthCheck},
         selection::BackendIter,
         Backend,
     },
@@ -116,16 +116,85 @@ impl ProxyHttp for Proxy {
         }
         // println!("Host: {:?}", host);
         let path = session.req_header().uri.path();
-        let proxy_config = config::proxy::get_backends().unwrap();
-        let routes = proxy_config.routes.get(host).unwrap();
-        let svc_path = routes.paths.get(path).unwrap();
-        let service = routes.services.get(&svc_path.service.name).unwrap();
-        let backend: &Backend = match service {
-            BackendType::RoundRobin(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
-            BackendType::Weighted(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
-            BackendType::Consistent(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
-            BackendType::Random(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
+        let proxy_config = match config::proxy::get_backends() {
+            Some(val) => val,
+            None => {
+                return service_unavailable(session).await;
+            }
         };
+        let routes = match proxy_config.routes.get(host) {
+            Some(val) => val,
+            None => {
+                return service_unavailable(session).await;
+            }
+        };
+        let svc_path = match routes.paths.get(path) {
+            Some(val) => val,
+            None => {
+                return service_unavailable(session).await;
+            }
+        };
+        let service = match routes.services.get(&svc_path.service.name) {
+            Some(val) => val,
+            None => {
+                return service_unavailable(session).await;
+            }
+        };
+        let backend: &Backend = match service {
+            BackendType::RoundRobin(iter) => unsafe {
+                match iter.as_mut() {
+                    Some(val) => match val.next() {
+                        Some(val) => val,
+                        None => {
+                            return service_unavailable(session).await;
+                        }
+                    },
+                    None => {
+                        return service_unavailable(session).await;
+                    }
+                }
+            },
+            BackendType::Weighted(iter) => unsafe {
+                match iter.as_mut() {
+                    Some(val) => match val.next() {
+                        Some(val) => val,
+                        None => {
+                            return service_unavailable(session).await;
+                        }
+                    },
+                    None => {
+                        return service_unavailable(session).await;
+                    }
+                }
+            },
+            BackendType::Consistent(iter) => unsafe {
+                match iter.as_mut() {
+                    Some(val) => match val.next() {
+                        Some(val) => val,
+                        None => {
+                            return service_unavailable(session).await;
+                        }
+                    },
+                    None => {
+                        return service_unavailable(session).await;
+                    }
+                }
+            },
+            BackendType::Random(iter) => unsafe {
+                match iter.as_mut() {
+                    Some(val) => match val.next() {
+                        Some(val) => val,
+                        None => {
+                            return service_unavailable(session).await;
+                        }
+                    },
+                    None => {
+                        return service_unavailable(session).await;
+                    }
+                }
+            },
+        };
+        /*
         let mut http_check = HttpHealthCheck::new(host, false);
         http_check.req.set_uri(http::Uri::from_static("/health"));
         match http_check.check(backend).await {
@@ -145,10 +214,55 @@ impl ProxyHttp for Proxy {
                 return Ok(true);
             }
         }
+        */
+        if let Some(headers) = &routes.route.del_headers {
+            for header in headers.iter() {
+                let _ = session.req_header_mut().remove_header(header.as_str());
+            }
+        }
+        if let Some(headers) = &routes.route.headers {
+            for header in headers.iter() {
+                let _ = session
+                    .req_header_mut()
+                    .append_header(header.name.as_str(), header.value.as_str())
+                    .is_ok();
+            }
+        }
+        let query = session.req_header().uri.query();
+        if let Some(rewrite) = svc_path.service.rewrite.clone() {
+            let mut uri = rewrite;
+            if let Some(q) = query {
+                uri.push('?');
+                uri.push_str(q);
+            }
+            if uri.is_empty() {
+                let rewrite = match http::uri::Uri::builder().path_and_query(uri).build() {
+                    Ok(val) => val,
+                    Err(e) => {
+                        tracing::error!("Error building uri: {}", e);
+                        return service_unavailable(session).await;
+                    }
+                };
+                session.req_header_mut().set_uri(rewrite);
+            }
+        }
         session
             .req_header_mut()
             .append_header("x-easy-proxy-backend", backend.addr.to_string())
             .unwrap();
         Ok(false)
     }
+}
+
+async fn service_unavailable(session: &mut Session) -> pingora::Result<bool> {
+    session.set_keepalive(None);
+    // SAFETY: Should be safe to unwrap here because we are sure that the header is set
+    let headers = ResponseHeader::build(502, None).unwrap();
+    let headers = HttpTask::Header(Box::new(headers), true);
+    let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
+    let _ = session
+        .response_duplex_vec(vec![headers, body])
+        .await
+        .is_ok();
+    Ok(true)
 }
