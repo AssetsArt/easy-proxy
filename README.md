@@ -1,18 +1,26 @@
 # Easy Proxy Documentation
 
 **Easy Proxy**, a simple proxy server designed to provide essential features for network traffic management and proxying.
+based on [pingora](https://github.com/cloudflare/pingora)
 
 ## Features
 
 Easy Proxy supports the following features:
-
-- [x] Load Balancing
-  - Algorithm
-  - [x] round_robin
-  - [ ] least_connection
-  - [ ] ip_hash
+- Routing
+  - [x] Host-based routing
+  - [x] Remove headers
+  - [x] Add headers
+  - [x] Rewrite by path
+  - [x] Path matching Exact, Prefix
+- Services
+  - [x] Ip and Port
+  - [x] Weight
+- Load Balancing
+  - [x] RoundRobin
+  - [x] Random
+  - [x] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
+  - [x] Weighted
 - [ ] SSL Termination
-- [ ] Caching
 - [ ] Filtering
 - [ ] Health Checking
 - [ ] Logging and Monitoring
@@ -20,63 +28,58 @@ Easy Proxy supports the following features:
   - [x] HTTP
   - [ ] HTTPS
 
-## Development
 
-To contribute or use Easy Proxy, follow these steps:
+## Example configuration
 
-1. Clone the repository:
-   ```sh
-   git clone https://github.com/Aitthi/easy-proxy.git
-   ```
-2. Change to the project directory:
-   ```sh
-   cd easy-proxy
-   ```
-3. Generate an RSA certificate for JWT:
-   ```sh
-   openssl genrsa -out ./config/jwt/private.key 4096
-   ```
-   ```sh
-   openssl rsa -in ./config/jwt/private.key -pubout -outform PEM -out ./config/jwt/public.key
-   ```
-4. Run the application:
-   ```sh
-   cargo run
-   ```
-   Or, to automatically rebuild and restart:
-   ```sh
-   cargo watch -q -c -x 'run'
-   ```
+### Global Configuration
+```yaml
+proxy:
+  addr: "0.0.0.0:8088"
+providers:
+  - name: files
+    path: examples
+    watch: true
+pingora:
+  # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
+  daemon: true
+  # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/conf.md
+  threads: 4
+  # work_stealing: true
+  # error_log: /var/log/pingora/error.log
+  # pid_file: /run/pingora.pid
+  # upgrade_sock: /tmp/pingora_upgrade.sock
+  # user: nobody
+  # group: webusers
+  # ca_file: /etc/ssl/certs/ca-certificates.crt
+```
 
-## API Documentation
-
-The API documentation outlines the endpoints and how to interact with Easy Proxy.
-
-**Postman URL:** https://documenter.getpostman.com/view/5547449/2s9YRGxUKB
-
-**Swagger URL:** http://localhost:1337/apidoc
-
-### Benchmarks on M1 pro 10 core 16GB | 2023-10-28
-```sh 
-command: `drill --benchmark benchmark.yml --stats -q`
-
-| Metric                                  | Easy Proxy            | Directly to the backend |
-|-----------------------------------------|-----------------------|-------------------------|
-| Concurrency                             | 150                   | 150                     |
-| Iterations                              | 100000                | 100000                  |
-| Rampup                                  | 1                     | 1                       |
-| Base URL                                | http://127.0.0.1:8088 | http://127.0.0.1:3002   |
-| Landing page Total requests             | 100000                | 100000                  |
-| Landing page Successful requests        | 100000                | 100000                  |
-| Landing page Failed requests            | 0                     | 0                       |
-| Landing page Median time per request    | 2ms                   | 1ms                     |
-| Landing page Average time per request   | 2ms                   | 1ms                     |
-| Landing page Sample standard deviation  | 2ms                   | 1ms                     |
-| Landing page 99.0'th percentile         | 7ms                   | 3ms                     |
-| Landing page 99.5'th percentile         | 8ms                   | 4ms                     |
-| Landing page 99.9'th percentile         | 18ms                  | 10ms                    |
-| Time taken for tests                    | 1.9 seconds           | 1.8 seconds             |
-| Total requests                          | 100000                | 100000                  |
-| Successful requests                     | 100000                | 100000                  |
-| Failed requests                         | 0                     | 0                       |
-| Requests per second                     | 51622.21 [#/sec]      | 57096.73 [#/sec]        |
+### Service and Route Configuration
+```yaml
+# Description: Service proxy configuration
+services:
+  - name: backend_service
+    algorithm: round_robin # round_robin, random, consistent, weighted
+    endpoints:
+      - ip: 127.0.0.1
+        port: 3002
+        weight: 1 # Optional
+        
+routes:
+  - host: localhost:8088
+    del_headers:
+      - accept
+    headers:
+      - name: x-custom-header # no case sensitive
+        value: "123" # olny string
+    paths:
+      - pathType: Exact # Exact, Prefix
+        path: /api/v1
+        service:
+          rewrite: /service/v1 # Optional
+          name: backend_service
+      - pathType: Prefix # Exact, Prefix
+        path: /api/v2
+        service:
+          rewrite: /service/v2 # Optional
+          name: backend_service
+```

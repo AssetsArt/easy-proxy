@@ -1,0 +1,27 @@
+# Description: Service proxy configuration
+services:
+  - name: backend_service
+    algorithm: round_robin # round_robin, random, consistent, weighted
+    endpoints:
+      - ip: 127.0.0.1
+        port: 3002
+        weight: 1 # Optional
+        
+routes:
+  - host: localhost:8088
+    del_headers:
+      - accept
+    headers:
+      - name: x-custom-header # no case sensitive
+        value: "123" # olny string
+    paths:
+      - pathType: Exact # Exact, Prefix
+        path: /api/v1
+        service:
+          rewrite: /service/v1 # Optional
+          name: backend_service
+      - pathType: Prefix # Exact, Prefix
+        path: /api/v2
+        service:
+          rewrite: /service/v2 # Optional
+          name: backend_service
