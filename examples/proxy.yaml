@@ -18,10 +18,10 @@ routes:
       - pathType: Exact # Exact, Prefix
         path: /api/v1
         service:
-          rewrite: /service/v1 # Optional
+          rewrite: /old_service/v1 # Optional
           name: backend_service
       - pathType: Prefix # Exact, Prefix
-        path: /api/v2
+        path: /api/v1
         service:
-          rewrite: /service/v2 # Optional
+          rewrite: /service/v1 # Optional
           name: backend_service

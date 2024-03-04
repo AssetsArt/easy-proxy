@@ -204,8 +204,8 @@ pub fn read_file(path: String) {
                 for path in route.paths.clone() {
                     if path.path_type == "Prefix" {
                         let match_path = format!("{}/:path", path.path);
-                        let _ = prefix.insert(match_path, path.path.clone()).is_ok();
-                        paths.insert(path.path.clone(), path);
+                        let _ = prefix.insert(match_path.clone(), match_path.clone()).is_ok();
+                        paths.insert(match_path, path);
                     } else {
                         let _ = prefix.insert(path.path.clone(), path.path.clone()).is_ok();
                         paths.insert(path.path.clone(), path);
