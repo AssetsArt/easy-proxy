@@ -113,7 +113,7 @@ pub fn read_config() {
 
 pub fn provider_files(file: &ProviderFiles) {
     let mut path = file.path.clone();
-    if !path.starts_with("/") {
+    if !path.starts_with('/') {
         if let Ok(cwd_path) = std::env::current_dir() {
             let cwd_path = cwd_path.clone();
             let cwd_path = cwd_path.to_str().unwrap_or_default();

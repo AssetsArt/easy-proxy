@@ -40,7 +40,7 @@ impl From<&Provider> for ProviderFiles {
                 .path
                 .clone()
                 .unwrap_or_else(|| "/etc/easy-proxy/dynamic".to_string()),
-            watch: p.watch.unwrap_or_else(|| true),
+            watch: p.watch.unwrap_or(true),
         }
     }
 }

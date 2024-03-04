@@ -4,7 +4,7 @@ use pingora::{
     http::ResponseHeader,
     lb::{
         health_check::{HealthCheck, HttpHealthCheck},
-        selection::{weighted::WeightedIterator, BackendIter, RoundRobin},
+        selection::BackendIter,
         Backend,
     },
     protocols::http::HttpTask,
@@ -15,13 +15,12 @@ use pingora::{
     },
     upstreams::peer::HttpPeer,
 };
-use tracing;
 
 #[derive(Debug, Clone)]
 pub struct Proxy {}
 
 impl Proxy {
-    pub fn new() -> Result<Server, anyhow::Error> {
+    pub fn new_proxy() -> Result<Server, anyhow::Error> {
         let app_conf = &config::app_config();
         let proxy = Proxy {};
         let mut opt = Opt::default();
@@ -121,24 +120,15 @@ impl ProxyHttp for Proxy {
         let routes = proxy_config.routes.get(host).unwrap();
         let svc_path = routes.paths.get(path).unwrap();
         let service = routes.services.get(&svc_path.service.name).unwrap();
-        let backend: &Backend;
-        match service {
-            BackendType::RoundRobin(iter) => {
-                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
-            }
-            BackendType::Weighted(iter) => {
-                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
-            }
-            BackendType::Consistent(iter) => {
-                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
-            }
-            BackendType::Random(iter) => {
-                backend = unsafe { iter.as_mut().unwrap().next().unwrap() };
-            }
-        }
+        let backend: &Backend = match service {
+            BackendType::RoundRobin(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
+            BackendType::Weighted(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
+            BackendType::Consistent(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
+            BackendType::Random(iter) => unsafe { iter.as_mut().unwrap().next().unwrap() },
+        };
         let mut http_check = HttpHealthCheck::new(host, false);
         http_check.req.set_uri(http::Uri::from_static("/health"));
-        match http_check.check(&backend).await {
+        match http_check.check(backend).await {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Error checking backend: {}", e);
