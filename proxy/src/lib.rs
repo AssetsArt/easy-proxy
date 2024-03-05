@@ -125,13 +125,38 @@ impl ProxyHttp for Proxy {
         let routes = match proxy_config.routes.get(host) {
             Some(val) => val,
             None => {
-                return service_unavailable(session).await;
+                // x-easy-proxy-svc
+                let Some(hkey) = session.get_header("x-easy-proxy-svc") else {
+                    return service_unavailable(session).await;
+                };
+                // println!("Header: {}", hkey.to_str().unwrap_or_default());
+                let Some(routes) = proxy_config.routes.get(hkey.to_str().unwrap_or_default())
+                else {
+                    return service_unavailable(session).await;
+                };
+                routes
             }
         };
         let svc_path = match routes.paths.at(path) {
             Ok(val) => val.value,
             Err(_) => {
-                return service_unavailable(session).await;
+                // return service_unavailable(session).await;
+                // x-easy-proxy-svc
+                let Some(hkey) = session.get_header("x-easy-proxy-svc") else {
+                    return service_unavailable(session).await;
+                };
+                // println!("Header: {}", hkey.to_str().unwrap_or_default());
+                let Some(routes) = proxy_config.routes.get(hkey.to_str().unwrap_or_default())
+                else {
+                    return service_unavailable(session).await;
+                };
+                let svc_path = match routes.paths.at(path) {
+                    Ok(val) => val.value,
+                    Err(_) => {
+                        return service_unavailable(session).await;
+                    }
+                };
+                svc_path
             }
         };
         let service = match routes.services.get(&svc_path.service.name) {
@@ -220,7 +245,7 @@ impl ProxyHttp for Proxy {
                 let _ = session.req_header_mut().remove_header(header.as_str());
             }
         }
-        if let Some(headers) = &routes.route.headers {
+        if let Some(headers) = &routes.route.add_headers {
             for header in headers.iter() {
                 let _ = session
                     .req_header_mut()

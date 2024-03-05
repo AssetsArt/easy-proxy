@@ -8,10 +8,10 @@ services:
         weight: 1 # Optional
         
 routes:
-  - host: localhost:8088
+  - host: mydomain.com
     del_headers:
       - accept
-    headers:
+    add_headers:
       - name: x-custom-header # no case sensitive
         value: "123" # olny string
     paths:
@@ -24,4 +24,10 @@ routes:
         path: /api/v1
         service:
           rewrite: /service/v1 # Optional
+          name: backend_service
+  - header: svc.service1 # from header key "x-easy-proxy-svc"
+    paths:
+      - pathType: Prefix # Exact, Prefix
+        path: /svc/v1
+        service:
           name: backend_service

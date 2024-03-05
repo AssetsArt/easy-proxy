@@ -43,9 +43,10 @@ pub struct Endpoint {
 
 #[derive(Clone, Deserialize)]
 pub struct Route {
-    pub host: String,
+    pub host: Option<String>,
+    pub header: Option<String>,
     pub paths: Vec<SvcPath>,
-    pub headers: Option<Vec<Header>>,
+    pub add_headers: Option<Vec<Header>>,
     pub del_headers: Option<Vec<String>>,
 }
 
@@ -200,24 +201,38 @@ pub fn read_file(path: String) {
         if let Some(routes) = conf.routes {
             for route in routes {
                 let mut paths = matchit::Router::new();
+                // println!("route.paths {:#?}", route.paths);
                 for path in route.paths.clone() {
                     if path.path_type == "Prefix" {
                         let match_path = format!("{}/:path", path.path);
-                        let _ = match paths.insert(match_path.clone(), path) {
+                        match paths.insert(match_path.clone(), path.clone()) {
                             Ok(_) => {}
                             Err(e) => {
                                 // println!("Unable to insert path: {:?}", e);
                                 tracing::error!("Unable to insert path: {:?}", e);
                             }
-                        };
+                        }
+                        if !route
+                            .paths
+                            .iter()
+                            .any(|p| p.path_type == "Exact" && p.path == path.path)
+                        {
+                            match paths.insert(path.path.clone(), path.clone()) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    // println!("Unable to insert path: {:?}", e);
+                                    tracing::error!("Unable to insert path: {:?}", e);
+                                }
+                            }
+                        }
                     } else {
-                        let _ = match paths.insert(path.path.clone(), path) {
+                        match paths.insert(path.path.clone(), path) {
                             Ok(_) => {}
                             Err(e) => {
                                 // println!("Unable to insert path: {:?}", e);
                                 tracing::error!("Unable to insert path: {:?}", e);
                             }
-                        };
+                        }
                     }
                 }
                 let mut p_services: HashMap<String, BackendType> = HashMap::new();
@@ -282,8 +297,21 @@ pub fn read_file(path: String) {
                         }
                     }
                 }
+
+                let match_key = match route.host.clone() {
+                    Some(val) => val,
+                    None => match route.header.clone() {
+                        Some(val) => val,
+                        None => {
+                            // println!("No match key found");
+                            tracing::error!("No match key found");
+                            continue;
+                        }
+                    },
+                };
+                // println!("match_key {}", match_key);
                 proxy_routes.insert(
-                    route.host.clone(),
+                    match_key,
                     ProxyRoute {
                         route,
                         paths,
