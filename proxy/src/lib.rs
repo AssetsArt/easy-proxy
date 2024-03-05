@@ -128,13 +128,9 @@ impl ProxyHttp for Proxy {
                 return service_unavailable(session).await;
             }
         };
-        let mut path = path;
-        if let Ok(r) = routes.route.prefix.at(path) {
-            path = r.value;
-        }
-        let svc_path = match routes.paths.get(path) {
-            Some(val) => val,
-            None => {
+        let svc_path = match routes.paths.at(path) {
+            Ok(val) => val.value,
+            Err(_) => {
                 return service_unavailable(session).await;
             }
         };

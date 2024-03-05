@@ -47,8 +47,6 @@ pub struct Route {
     pub paths: Vec<SvcPath>,
     pub headers: Option<Vec<Header>>,
     pub del_headers: Option<Vec<String>>,
-    #[serde(skip)]
-    pub prefix: matchit::Router<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -89,7 +87,7 @@ pub struct ProxyConfig {
 
 pub struct ProxyRoute {
     pub route: Route,
-    pub paths: HashMap<String, SvcPath>,
+    pub paths: matchit::Router<SvcPath>,
     pub services: HashMap<String, BackendType>,
 }
 
@@ -198,20 +196,15 @@ pub fn read_file(path: String) {
     for conf in proxy_config {
         if let Some(routes) = conf.routes {
             for route in routes {
-                let mut route = route.clone();
-                let mut paths = HashMap::new();
-                let mut prefix = matchit::Router::new();
+                let mut paths = matchit::Router::new();
                 for path in route.paths.clone() {
                     if path.path_type == "Prefix" {
                         let match_path = format!("{}/:path", path.path);
-                        let _ = prefix.insert(match_path.clone(), match_path.clone()).is_ok();
-                        paths.insert(match_path, path);
+                        let _ = paths.insert(match_path.clone(), path).is_ok();
                     } else {
-                        let _ = prefix.insert(path.path.clone(), path.path.clone()).is_ok();
-                        paths.insert(path.path.clone(), path);
+                        let _ = paths.insert(path.path.clone(), path).is_ok();
                     }
                 }
-                route.prefix = prefix;
                 let mut p_services: HashMap<String, BackendType> = HashMap::new();
                 if let Some(services) = conf.services.clone() {
                     for service in services {
