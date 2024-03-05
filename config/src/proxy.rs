@@ -101,7 +101,6 @@ pub fn get_backends() -> Option<&'static ProxyConfig> {
     if unsafe { GLOBAL_BACKENDS.is_null() } {
         return None;
     }
-    // println!("GLOBAL_BACKENDS: {:#?}", unsafe { &*GLOBAL_BACKENDS });
     unsafe { Some(&*GLOBAL_BACKENDS) }
 }
 
@@ -144,12 +143,14 @@ pub fn provider_files(file: &ProviderFiles) {
                             return;
                         }
                         for path in e.paths {
-                            println!("config changed: {:?}", path);
+                            // println!("config changed: {:?}", path);
+                            tracing::info!("config changed: {:?}", path);
                         }
                         read_file(path_.clone());
                     }
                     Err(e) => {
-                        println!("watch error: {:?}", e);
+                        // println!("watch error: {:?}", e);
+                        tracing::error!("watch error: {:?}", e);
                     }
                 }
             })
@@ -158,7 +159,8 @@ pub fn provider_files(file: &ProviderFiles) {
             watcher
                 .watch(Path::new(&path), notify::RecursiveMode::Recursive)
                 .expect("failed to watch path");
-            println!("watching: {}", path);
+            // println!("watching: {}", path);
+            tracing::info!("watching: {}", path);
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(15));
             }
@@ -186,7 +188,8 @@ pub fn read_file(path: String) {
         let conf: ProxyConfigFile = match conf {
             Ok(val) => val,
             Err(e) => {
-                println!("Unable to read conf file: {:?}", e);
+                // println!("Unable to read conf file: {:?}", e);
+                tracing::error!("Unable to read conf file: {:?}", e);
                 continue;
             }
         };
@@ -200,9 +203,21 @@ pub fn read_file(path: String) {
                 for path in route.paths.clone() {
                     if path.path_type == "Prefix" {
                         let match_path = format!("{}/:path", path.path);
-                        let _ = paths.insert(match_path.clone(), path).is_ok();
+                        let _ = match paths.insert(match_path.clone(), path) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                // println!("Unable to insert path: {:?}", e);
+                                tracing::error!("Unable to insert path: {:?}", e);
+                            }
+                        };
                     } else {
-                        let _ = paths.insert(path.path.clone(), path).is_ok();
+                        let _ = match paths.insert(path.path.clone(), path) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                // println!("Unable to insert path: {:?}", e);
+                                tracing::error!("Unable to insert path: {:?}", e);
+                            }
+                        };
                     }
                 }
                 let mut p_services: HashMap<String, BackendType> = HashMap::new();
@@ -213,7 +228,8 @@ pub fn read_file(path: String) {
                             let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
                                 Ok(val) => val,
                                 Err(e) => {
-                                    println!("Unable to parse address: {:?}", e);
+                                    // println!("Unable to parse address: {:?}", e);
+                                    tracing::error!("Unable to parse address: {:?}", e);
                                     continue;
                                 }
                             };

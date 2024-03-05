@@ -285,6 +285,7 @@ dependencies = [
  "pingora",
  "serde",
  "serde_yaml 0.9.32",
+ "tracing",
 ]
 
 [[package]]
