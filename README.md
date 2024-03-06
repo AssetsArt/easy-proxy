@@ -8,13 +8,11 @@ based on [pingora](https://github.com/cloudflare/pingora)
 Easy Proxy supports the following features:
 - Routing
   - [x] Host-based routing
+  - [x] Header-based routing
   - [x] Remove headers
   - [x] Add headers
   - [x] Rewrite by path
   - [x] Path matching Exact, Prefix
-- Services
-  - [x] Ip and Port
-  - [x] Weight
 - Load Balancing
   - [x] RoundRobin
   - [x] Random
@@ -28,6 +26,17 @@ Easy Proxy supports the following features:
   - [x] HTTP
   - [ ] HTTPS
 
+## Use from source
+```bash
+# Clone the repository
+git clone https://github.com/AssetsArt/easy-proxy.git
+# Change the working directory
+cd easy-proxy
+# Build the application
+cargo build --release
+# Run the application // EASY_PROXY_CONF is the environment variable to set the configuration file path
+EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/runtime
+```
 
 ## Example configuration
 
@@ -55,7 +64,11 @@ pingora:
 
 ### Service and Route Configuration
 ```yaml
-# Description: Service proxy configuration
+# Select the service to be proxied
+service_selector:
+  header: x-easy-proxy-svc # from header key "x-easy-proxy-svc"
+
+# Services to be proxied
 services:
   - name: backend_service
     algorithm: round_robin # round_robin, random, consistent, weighted
@@ -64,11 +77,12 @@ services:
         port: 3002
         weight: 1 # Optional
         
+# A list of routes to be proxied 
 routes:
-  - host: localhost:8088
+  - host: mydomain.com
     del_headers:
       - accept
-    headers:
+    add_headers:
       - name: x-custom-header # no case sensitive
         value: "123" # olny string
     paths:
@@ -81,5 +95,11 @@ routes:
         path: /api/v1
         service:
           rewrite: /service/v1 # Optional
+          name: backend_service
+  - header: svc.service1 # from header key "x-easy-proxy-svc"
+    paths:
+      - pathType: Prefix # Exact, Prefix
+        path: /svc/v1
+        service:
           name: backend_service
 ```

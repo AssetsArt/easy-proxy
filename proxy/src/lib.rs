@@ -1,13 +1,10 @@
+mod backend;
+mod modify;
+mod response;
+mod services;
+
 use async_trait::async_trait;
-use config::proxy::BackendType;
 use pingora::{
-    http::ResponseHeader,
-    lb::{
-        // health_check::{HealthCheck, HttpHealthCheck},
-        selection::BackendIter,
-        Backend,
-    },
-    protocols::http::HttpTask,
     proxy::{self, ProxyHttp, Session},
     server::{
         configuration::{Opt, ServerConf},
@@ -96,10 +93,10 @@ impl ProxyHttp for Proxy {
         let backend = session
             .get_header("x-easy-proxy-backend")
             .expect("Backend not found");
-        let backend = backend.to_str().expect("Backend not found").to_string();
+        let backend = backend.to_str().expect("[upstream_peer] Backend not found");
         let mut host = "localhost";
         if let Some(s) = session.get_header("host") {
-            host = s.to_str().expect("SNI not found");
+            host = s.to_str().expect("[upstream_peer] As str failed");
         }
         let peer = Box::new(HttpPeer::new(backend, false, host.to_string()));
         Ok(peer)
@@ -110,161 +107,31 @@ impl ProxyHttp for Proxy {
         session: &mut Session,
         _ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
-        let mut host = "localhost";
-        if let Some(s) = session.get_header("host") {
-            host = s.to_str().expect("SNI not found");
-        }
-        // println!("Host: {:?}", host);
-        let path = session.req_header().uri.path();
-        let proxy_config = match config::proxy::get_backends() {
+        let services = match services::find(session) {
             Some(val) => val,
             None => {
-                return service_unavailable(session).await;
+                tracing::error!("[request_filter] Service not found");
+                return response::service_unavailable(session).await;
             }
         };
-        let routes = match proxy_config.routes.get(host) {
+        let backend = match backend::selected(services.backend) {
             Some(val) => val,
             None => {
-                return service_unavailable(session).await;
+                tracing::error!("[request_filter] Backend not found");
+                return response::service_unavailable(session).await;
             }
         };
-        let svc_path = match routes.paths.at(path) {
-            Ok(val) => val.value,
-            Err(_) => {
-                return service_unavailable(session).await;
-            }
-        };
-        let service = match routes.services.get(&svc_path.service.name) {
-            Some(val) => val,
-            None => {
-                return service_unavailable(session).await;
-            }
-        };
-        let backend: &Backend = match service {
-            BackendType::RoundRobin(iter) => unsafe {
-                match iter.as_mut() {
-                    Some(val) => match val.next() {
-                        Some(val) => val,
-                        None => {
-                            return service_unavailable(session).await;
-                        }
-                    },
-                    None => {
-                        return service_unavailable(session).await;
-                    }
-                }
-            },
-            BackendType::Weighted(iter) => unsafe {
-                match iter.as_mut() {
-                    Some(val) => match val.next() {
-                        Some(val) => val,
-                        None => {
-                            return service_unavailable(session).await;
-                        }
-                    },
-                    None => {
-                        return service_unavailable(session).await;
-                    }
-                }
-            },
-            BackendType::Consistent(iter) => unsafe {
-                match iter.as_mut() {
-                    Some(val) => match val.next() {
-                        Some(val) => val,
-                        None => {
-                            return service_unavailable(session).await;
-                        }
-                    },
-                    None => {
-                        return service_unavailable(session).await;
-                    }
-                }
-            },
-            BackendType::Random(iter) => unsafe {
-                match iter.as_mut() {
-                    Some(val) => match val.next() {
-                        Some(val) => val,
-                        None => {
-                            return service_unavailable(session).await;
-                        }
-                    },
-                    None => {
-                        return service_unavailable(session).await;
-                    }
-                }
-            },
-        };
-        /*
-        let mut http_check = HttpHealthCheck::new(host, false);
-        http_check.req.set_uri(http::Uri::from_static("/health"));
-        match http_check.check(backend).await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error checking backend: {}", e);
-                // backend  = backends.next();
-                session.set_keepalive(None);
-                // SAFETY: Should be safe to unwrap here because we are sure that the header is set
-                let headers = ResponseHeader::build(502, None).unwrap();
-                let headers = HttpTask::Header(Box::new(headers), true);
-                let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
-                let _ = session
-                    .response_duplex_vec(vec![headers, body])
-                    .await
-                    .is_ok();
-                return Ok(true);
-            }
-        }
-        */
-        if let Some(headers) = &routes.route.del_headers {
-            for header in headers.iter() {
-                let _ = session.req_header_mut().remove_header(header.as_str());
-            }
-        }
-        if let Some(headers) = &routes.route.headers {
-            for header in headers.iter() {
-                let _ = session
-                    .req_header_mut()
-                    .append_header(header.name.as_str(), header.value.as_str())
-                    .is_ok();
-            }
-        }
-        let query = session.req_header().uri.query();
-        let old_path = session.req_header().uri.path();
-        if let Some(rewrite) = svc_path.service.rewrite.clone() {
-            let rewrite = old_path.replace(svc_path.path.as_str(), rewrite.as_str());
-            let mut uri = rewrite;
-            if let Some(q) = query {
-                uri.push('?');
-                uri.push_str(q);
-            }
-            if !uri.is_empty() {
-                let rewrite = match http::uri::Uri::builder().path_and_query(uri).build() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        tracing::error!("Error building uri: {}", e);
-                        return service_unavailable(session).await;
-                    }
-                };
-                session.req_header_mut().set_uri(rewrite.clone());
-            }
-        }
+        // modify the request headers
+        modify::headers(session, &services.routes.route);
+        // rewrite the request
+        modify::rewrite(session, services.svc_path).await?;
+        // add the backend to the request headers
         session
             .req_header_mut()
             .append_header("x-easy-proxy-backend", backend.addr.to_string())
             .unwrap();
+
+        // return false to continue processing the request
         Ok(false)
     }
-}
-
-async fn service_unavailable(session: &mut Session) -> pingora::Result<bool> {
-    session.set_keepalive(None);
-    // SAFETY: Should be safe to unwrap here because we are sure that the header is set
-    let headers = ResponseHeader::build(502, None).unwrap();
-    let headers = HttpTask::Header(Box::new(headers), true);
-    let body = HttpTask::Body(Some("Service Unavailable".as_bytes().into()), true);
-    let _ = session
-        .response_duplex_vec(vec![headers, body])
-        .await
-        .is_ok();
-    Ok(true)
 }
