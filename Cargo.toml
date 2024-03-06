@@ -10,11 +10,8 @@ members = [
 ]
 
 [workspace.dependencies]
-lazy_static = "1.4"
 anyhow = "1.0"
-futures-util = "0.3"
 mimalloc = "0.1"
-tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 async-trait="0.1"
