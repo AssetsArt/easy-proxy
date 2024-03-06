@@ -1,4 +1,8 @@
-# Description: Service proxy configuration
+# Select the service to be proxied
+service_selector:
+  header: x-easy-proxy-svc # from header key "x-easy-proxy-svc"
+
+# Services to be proxied
 services:
   - name: backend_service
     algorithm: round_robin # round_robin, random, consistent, weighted
@@ -7,6 +11,7 @@ services:
         port: 3002
         weight: 1 # Optional
         
+# A list of routes to be proxied 
 routes:
   - host: mydomain.com
     del_headers:

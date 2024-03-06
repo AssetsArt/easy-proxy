@@ -25,6 +25,7 @@ use std::{
 pub struct ProxyConfigFile {
     pub services: Option<Vec<Service>>,
     pub routes: Option<Vec<Route>>,
+    pub service_selector: Option<ServiceSelector>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -82,8 +83,17 @@ pub enum BackendType {
     Random(*mut WeightedIterator<Random>),
 }
 
+// service_selector:
+//   header: x-easy-proxy-svc # from header key "x-easy-proxy-svc"
+
 pub struct ProxyConfig {
     pub routes: HashMap<String, ProxyRoute>,
+    pub service_selector: ServiceSelector,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct ServiceSelector {
+    pub header: String,
 }
 
 pub struct ProxyRoute {
@@ -197,7 +207,13 @@ pub fn read_file(path: String) {
         proxy_config.push(conf);
     }
     let mut proxy_routes = HashMap::new();
+    let mut service_selector = ServiceSelector {
+        header: "x-easy-proxy-svc".to_string(),
+    };
     for conf in proxy_config {
+        if let Some(selector) = conf.service_selector {
+            service_selector = selector;
+        }
         if let Some(routes) = conf.routes {
             for route in routes {
                 let mut paths = matchit::Router::new();
@@ -325,6 +341,7 @@ pub fn read_file(path: String) {
     unsafe {
         GLOBAL_BACKENDS = Box::into_raw(Box::new(ProxyConfig {
             routes: proxy_routes,
+            service_selector,
         }));
     }
 }
