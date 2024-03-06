@@ -26,6 +26,17 @@ Easy Proxy supports the following features:
   - [x] HTTP
   - [ ] HTTPS
 
+## Use from source
+```bash
+# Clone the repository
+git clone https://github.com/AssetsArt/easy-proxy.git
+# Change the working directory
+cd easy-proxy
+# Build the application
+cargo build --release
+# Run the application // EASY_PROXY_CONF is the environment variable to set the configuration file path
+EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/easy-proxy
+```
 
 ## Example configuration
 

@@ -12,12 +12,12 @@ static mut GLOBAL_CONFIG: *const models::AppConfig = std::ptr::null();
 pub fn app_config() -> &'static models::AppConfig {
     INIT_CONFIG.call_once(|| {
         // FROM ENV
-        let cwd_path = std::env::var("EASY_PROXY_CONF");
-        let cwd_path = match cwd_path {
+        let conf_path = std::env::var("EASY_PROXY_CONF");
+        let conf_path = match conf_path {
             Ok(val) => val,
             Err(_e) => {
-                let cwd_path = std::env::current_dir().expect("Unable to get current dir");
-                cwd_path
+                let conf_path = std::env::current_dir().expect("Unable to get current dir");
+                conf_path
                     .join(".config/easy_proxy.yaml")
                     .to_str()
                     .expect("Unable to convert path")
@@ -25,7 +25,7 @@ pub fn app_config() -> &'static models::AppConfig {
             }
         };
 
-        let open_conf = File::open(cwd_path).expect("Unable to open file");
+        let open_conf = File::open(conf_path).expect("Unable to open file");
         let read_conf = BufReader::new(open_conf);
         let conf: models::AppConfig =
             serde_yaml::from_reader(read_conf).expect("Unable to read conf file");
