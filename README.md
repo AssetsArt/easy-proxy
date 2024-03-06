@@ -35,7 +35,7 @@ cd easy-proxy
 # Build the application
 cargo build --release
 # Run the application // EASY_PROXY_CONF is the environment variable to set the configuration file path
-EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/easy-proxy
+EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/runtime
 ```
 
 ## Example configuration
