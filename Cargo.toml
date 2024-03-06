@@ -22,6 +22,7 @@ fnv = "1"
 http = "1"
 notify = "6.1"
 matchit = "0.7"
+ahash = "0.8"
 
 [profile.release]
 strip = true

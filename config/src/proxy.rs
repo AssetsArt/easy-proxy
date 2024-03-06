@@ -14,12 +14,13 @@ use pingora::{
 };
 use serde::Deserialize;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::BTreeSet,
     fs::File,
     io::BufReader,
     path::Path,
     sync::{Arc, Once},
 };
+use ahash::AHashMap;
 
 #[derive(Clone, Deserialize)]
 pub struct ProxyConfigFile {
@@ -87,7 +88,7 @@ pub enum BackendType {
 //   header: x-easy-proxy-svc # from header key "x-easy-proxy-svc"
 
 pub struct ProxyConfig {
-    pub routes: HashMap<String, ProxyRoute>,
+    pub routes: AHashMap<String, ProxyRoute>,
     pub service_selector: ServiceSelector,
 }
 
@@ -99,7 +100,7 @@ pub struct ServiceSelector {
 pub struct ProxyRoute {
     pub route: Route,
     pub paths: matchit::Router<SvcPath>,
-    pub services: HashMap<String, BackendType>,
+    pub services: AHashMap<String, BackendType>,
 }
 
 static INIT_BACKENDS: Once = Once::new();
@@ -206,7 +207,7 @@ pub fn read_file(path: String) {
         };
         proxy_config.push(conf);
     }
-    let mut proxy_routes = HashMap::new();
+    let mut proxy_routes = AHashMap::new();
     let mut service_selector = ServiceSelector {
         header: "x-easy-proxy-svc".to_string(),
     };
@@ -251,7 +252,7 @@ pub fn read_file(path: String) {
                         }
                     }
                 }
-                let mut p_services: HashMap<String, BackendType> = HashMap::new();
+                let mut p_services: AHashMap<String, BackendType> = AHashMap::new();
                 if let Some(services) = conf.services.clone() {
                     for service in services {
                         let mut backends: BTreeSet<Backend> = BTreeSet::new();

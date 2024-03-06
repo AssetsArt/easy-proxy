@@ -13,3 +13,4 @@ fnv = { workspace = true }
 notify = { workspace = true }
 matchit = { workspace = true }
 tracing = { workspace = true }
+ahash = { workspace = true }
