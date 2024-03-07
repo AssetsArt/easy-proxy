@@ -1,4 +1,5 @@
 use crate::models::ProviderFiles;
+use ahash::AHashMap;
 use notify::{self, Event, Watcher};
 use pingora::{
     lb::{
@@ -20,7 +21,6 @@ use std::{
     path::Path,
     sync::{Arc, Once},
 };
-use ahash::AHashMap;
 
 #[derive(Clone, Deserialize)]
 pub struct ProxyConfigFile {

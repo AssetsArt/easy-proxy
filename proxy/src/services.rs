@@ -40,9 +40,6 @@ fn find_routes(
     }
 }
 
-fn find_service_path(
-    path: &str,
-    routes: &'static ProxyRoute
-) -> Option<&'static SvcPath> {
+fn find_service_path(path: &str, routes: &'static ProxyRoute) -> Option<&'static SvcPath> {
     routes.paths.at(path).ok().map(|v| v.value)
 }
