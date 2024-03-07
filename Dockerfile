@@ -4,7 +4,6 @@ FROM ghcr.io/rust-lang/rust:nightly-alpine as builder
 RUN set -eux; \
     apk add --no-cache \
     libressl-dev \
-    openssl-dev \
     musl-dev \
     gcc \
     clang \
