@@ -8,7 +8,7 @@ RUN set -eux; \
     musl-dev \
     pkgconfig \
     curl \
-    gcc
+    g++
 
 WORKDIR /app
 # copy app src
