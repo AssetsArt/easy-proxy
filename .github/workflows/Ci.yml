@@ -20,7 +20,9 @@ jobs:
       - name: Build Docker image
         run: |
           docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }} . --load
+          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }} . --push
+      - name: Version to latest tag
+        run: docker pull ghcr.io/assetsart/easy-proxy:${{ github.sha }}
       - name: Version to latest tag
         run: docker tag ghcr.io/assetsart/easy-proxy:${{ github.sha }} ghcr.io/assetsart/easy-proxy:latest
       - name: Push latest tag to registry
