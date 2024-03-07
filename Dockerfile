@@ -1,7 +1,12 @@
 # syntax=docker/dockerfile:1
 # build stage
-FROM ghcr.io/rust-lang/rust:nightly-alpine as builder 
-RUN apt update && apt install g++ libclang-dev -y
+FROM ghcr.io/rust-lang/rust:nightly-alpine as builder
+RUN set -eux; \
+    apk add --no-cache \
+    libressl-dev \
+    musl-dev \
+    pkgconfig
+
 WORKDIR /app
 # copy app src
 COPY . .
