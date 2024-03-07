@@ -26,7 +26,11 @@ jobs:
         uses: docker/setup-buildx-action@v1
       - name: Build Docker image
         run: |
-          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} .
+          if [ "${{ matrix.architecture }}" == "x86_64" ]; then
+            docker buildx build --platform linux/amd64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} .
+          elif [ "${{ matrix.architecture }}" == "arm64" ]; then
+            docker buildx build --platform linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} .
+          fi
       - name: Log in to Docker Hub (or any other container registry)
         run: docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image to registry
