@@ -2,12 +2,13 @@
 # build stage
 FROM ghcr.io/rust-lang/rust:nightly-alpine as builder
 RUN set -eux; \
-    apk add --no-cache \
+    apk add --no-cache --force-overwrite --allow-untrusted \
+    openssl-dev \
     libressl-dev \
     musl-dev \
-    gcc \
-    clang \
-    pkgconfig
+    pkgconfig \
+    curl \
+    gcc
 
 WORKDIR /app
 # copy app src
