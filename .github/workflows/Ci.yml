@@ -12,12 +12,12 @@ jobs:
         uses: actions/checkout@v2
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/AssetsArt/easy-proxy:version-${{ github.sha }} .
+          docker build -t ghcr.io/assetsart/easy-proxy:version-${{ github.sha }} .
       - name: Log in to Docker Hub (or any other container registry)
         run: docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image to registry
-        run: docker push ghcr.io/AssetsArt/easy-proxy:version-${{ github.sha }}
+        run: docker push ghcr.io/assetsart/easy-proxy:version-${{ github.sha }}
       - name: Version to latest tag
-        run: docker tag ghcr.io/AssetsArt/easy-proxy:version-${{ github.sha }} ghcr.io/AssetsArt/easy-proxy:latest
+        run: docker tag ghcr.io/assetsart/easy-proxy:version-${{ github.sha }} ghcr.io/assetsart/easy-proxy:latest
       - name: Push latest tag to registry
-        run: docker push ghcr.io/AssetsArt/easy-proxy:latest
+        run: docker push ghcr.io/assetsart/easy-proxy:latest
