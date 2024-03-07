@@ -16,7 +16,7 @@ pub fn find(session: &Session) -> Option<Service> {
     let path = session.req_header().uri.path();
     let proxy_config = config::proxy::get_backends()?;
     let routes = find_routes(host, proxy_config, session)?;
-    let svc_path = find_service_path(path, routes, session, proxy_config)?;
+    let svc_path = find_service_path(path, routes)?;
     // Some(routes.services.get(&svc_path.service.name)?)
     let svc = Service {
         routes,
@@ -42,19 +42,7 @@ fn find_routes(
 
 fn find_service_path(
     path: &str,
-    routes: &'static ProxyRoute,
-    session: &Session,
-    proxy_config: &'static ProxyConfig,
+    routes: &'static ProxyRoute
 ) -> Option<&'static SvcPath> {
-    match routes.paths.at(path) {
-        Ok(val) => Some(val.value),
-        Err(_) => {
-            let hkey = session.get_header(proxy_config.service_selector.header.as_str())?;
-            routes
-                .paths
-                .at(hkey.to_str().unwrap_or_default())
-                .ok()
-                .map(|val| val.value)
-        }
-    }
+    routes.paths.at(path).ok().map(|v| v.value)
 }
