@@ -13,7 +13,7 @@ services:
         
 # A list of routes to be proxied 
 routes:
-  - host: mydomain.com
+  - host: localhost:8088
     del_headers:
       - accept
     add_headers:
@@ -30,9 +30,9 @@ routes:
         service:
           rewrite: /service/v1 # Optional
           name: backend_service
-  - header: svc.service1 # from header key "x-easy-proxy-svc"
-    paths:
-      - pathType: Prefix # Exact, Prefix
-        path: /svc/v1
-        service:
-          name: backend_service
+  # - header: svc.service1 # from header key "x-easy-proxy-svc"
+  #   paths:
+  #     - pathType: Prefix # Exact, Prefix
+  #       path: /svc/v1
+  #       service:
+  #         name: backend_service

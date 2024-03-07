@@ -110,14 +110,14 @@ impl ProxyHttp for Proxy {
         let services = match services::find(session) {
             Some(val) => val,
             None => {
-                tracing::error!("[request_filter] Service not found");
+                // tracing::error!("[request_filter] Service not found");
                 return response::service_unavailable(session).await;
             }
         };
         let backend = match backend::selected(services.backend) {
             Some(val) => val,
             None => {
-                tracing::error!("[request_filter] Backend not found");
+                // tracing::error!("[request_filter] Backend not found");
                 return response::service_unavailable(session).await;
             }
         };
