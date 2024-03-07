@@ -1,20 +1,28 @@
 version: '3.8'
-networks:
-  gateway: {}
 services:
   easy-proxy:
-    networks:
-      - gateway
     image: ghcr.io/assetsart/easy-proxy:40036db34c9c217329a2548c723b5c968519a530
     ports:
       - 8088:8088
     volumes:
       - ./examples:/app/examples
-  http-listener:
-      networks:
-        - gateway
-      image: mendhak/http-https-echo:31
-      environment:
-          - HTTP_PORT=8888
-      ports:
-          - "3002:8888"
+    networks:
+      - gateway
+  http-echo-1:
+    image: hashicorp/http-echo:latest
+    command: ["-text", "Hello, World 3002"]
+    ports:
+      - "3002:5678"
+    networks:
+      - gateway
+  http-echo-2:
+    image: hashicorp/http-echo:latest
+    command: ["-text", "Hello, World 3003"]
+    ports:
+      - "3003:5678"
+    networks:
+      - gateway
+
+
+networks:
+  gateway: {}

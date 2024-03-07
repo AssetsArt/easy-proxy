@@ -7,10 +7,13 @@ services:
   - name: backend_service
     algorithm: round_robin # round_robin, random, consistent, weighted
     endpoints:
-      - ip: 127.0.0.1
+      - ip: 172.20.0.1
         port: 3002
         weight: 1 # Optional
-        
+      - ip: 172.20.0.1
+        port: 3003
+        weight: 1 # Optional
+
 # A list of routes to be proxied 
 routes:
   - host: localhost:8088
@@ -21,9 +24,8 @@ routes:
         value: "123" # olny string
     paths:
       - pathType: Exact # Exact, Prefix
-        path: /api/v1
+        path: /
         service:
-          rewrite: /old_service/v1 # Optional
           name: backend_service
       - pathType: Prefix # Exact, Prefix
         path: /api/v1
