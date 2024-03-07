@@ -1,29 +1,25 @@
 # syntax=docker/dockerfile:1
 # build stage
-FROM ghcr.io/rust-lang/rust:nightly-bookworm-slim as builder 
+FROM ghcr.io/rust-lang/rust:nightly-alpine as builder 
 RUN apt update && apt install g++ libclang-dev -y
 WORKDIR /app
 # copy app src
 COPY . .
 # build app
-RUN RUSTFLAGS="-C target-cpu=native" cargo build --release
+RUN cargo build --release
 
 # create release image
-FROM debian:latest
-
-ARG timezone=Asia/Bangkok
-
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates tzdata
+RUN cp /usr/share/zoneinfo/Asia/Bangkok /etc/localtime
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
-ENV TZ $timezone
+ENV TZ=Asia/Bangkok
 
 WORKDIR /app
 # copy app release
 COPY --from=builder /app/target/release/runtime ./easy-proxy
-
-# expose default port
-EXPOSE 1337 
-EXPOSE 8088
+COPY .config .config
 
 # default run entrypoint
 CMD ["./easy-proxy"]
