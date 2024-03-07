@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1
 # build stage
-FROM ghcr.io/rust-lang/rust:nightly-alpine as builder
+FROM ghcr.io/rust-lang/rust:nightly-slim AS builder
+# install for build
 RUN set -eux; \
-    apk add --no-cache --force-overwrite --allow-untrusted \
-    clang \
-    clang-dev \
-    gcc \
-    libressl-dev \
-    musl-dev \
-    pkgconfig \
-    curl \
-    g++
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        g++ \
+        cmake \
+        libssl-dev \
+        make \
+        pkg-config
 
 WORKDIR /app
 # copy app src
@@ -19,8 +19,8 @@ COPY . .
 RUN cargo build --release
 
 # create release image
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates tzdata
+FROM debian:latest
+RUN apt-get update && apt-get install -y ca-certificates tzdata
 RUN cp /usr/share/zoneinfo/Asia/Bangkok /etc/localtime
 ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
