@@ -26,18 +26,6 @@ Easy Proxy supports the following features:
   - [x] HTTP
   - [ ] HTTPS
 
-## Use from source
-```bash
-# Clone the repository
-git clone https://github.com/AssetsArt/easy-proxy.git
-# Change the working directory
-cd easy-proxy
-# Build the application
-cargo build --release
-# Run the application // EASY_PROXY_CONF is the environment variable to set the configuration file path
-EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/runtime
-```
-
 ## Example configuration
 
 ### Global Configuration
@@ -102,4 +90,54 @@ routes:
         path: /svc/v1
         service:
           name: backend_service
+```
+
+## Use from docker-compose
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  easy-proxy:
+    image: ghcr.io/assetsart/easy-proxy:latest
+    ports:
+      - 8088:8088
+    volumes:
+      - ./examples:/app/examples
+    networks:
+      - gateway
+  http-echo-1:
+    image: hashicorp/http-echo:latest
+    command: ["-text", "Hello, World 3002"]
+    ports:
+      - "3002:5678"
+    networks:
+      - gateway
+  http-echo-2:
+    image: hashicorp/http-echo:latest
+    command: ["-text", "Hello, World 3003"]
+    ports:
+      - "3003:5678"
+    networks:
+      - gateway
+networks:
+  gateway: {}
+```
+```bash
+$ docker-compose up
+```
+```bash
+$ curl -H "Host: mydomain.com" http://localhost:8088/api/v1
+```
+
+## Use from source
+```bash
+# Clone the repository
+$ git clone https://github.com/AssetsArt/easy-proxy.git
+# Change the working directory
+$ cd easy-proxy
+# Build the application
+$ cargo build --release
+# Run the application // EASY_PROXY_CONF is the environment variable to set the configuration file path
+$ EASY_PROXY_CONF=.config/easy_proxy.yaml ./target/release/runtime
 ```

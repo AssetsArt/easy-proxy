@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   easy-proxy:
-    image: ghcr.io/assetsart/easy-proxy:40036db34c9c217329a2548c723b5c968519a530
+    image: ghcr.io/assetsart/easy-proxy:latest
     ports:
       - 8088:8088
     volumes:
