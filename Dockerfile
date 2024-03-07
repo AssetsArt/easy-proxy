@@ -3,7 +3,8 @@
 FROM ghcr.io/rust-lang/rust:nightly-alpine as builder
 RUN set -eux; \
     apk add --no-cache --force-overwrite --allow-untrusted \
-    openssl-dev \
+    clang \
+    clang-dev \
     libressl-dev \
     musl-dev \
     pkgconfig \
