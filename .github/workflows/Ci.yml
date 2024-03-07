@@ -7,17 +7,10 @@ on:
 
 jobs:
   build-release:
-    strategy:
-      matrix:
-        architecture: [x86_64, arm64]  # Add ARM architecture to the matrix
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Configure Docker build arguments
-        id: build-args
-        run: |
-          echo "BUILD_ARCH=${{ matrix.architecture }}" >> $GITHUB_ENV
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
         with:
@@ -27,12 +20,8 @@ jobs:
       - name: Build Docker image
         run: |
           docker login ghcr.io -u ${{ github.actor }} -p ${{ secrets.DOCKER_PASSWORD }}
-          if [ "${{ matrix.architecture }}" == "x86_64" ]; then
-            docker buildx build --platform linux/amd64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} . --push
-          elif [ "${{ matrix.architecture }}" == "arm64" ]; then
-            docker buildx build --platform linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} . --push
-          fi
+          docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/assetsart/easy-proxy:${{ github.sha }} . --push
       - name: Version to latest tag
-        run: docker tag ghcr.io/assetsart/easy-proxy:${{ github.sha }}-${{ matrix.architecture }} ghcr.io/assetsart/easy-proxy:latest-${{ matrix.architecture }}
+        run: docker tag ghcr.io/assetsart/easy-proxy:${{ github.sha }} ghcr.io/assetsart/easy-proxy:latest
       - name: Push latest tag to registry
-        run: docker push ghcr.io/assetsart/easy-proxy:latest-${{ matrix.architecture }}
+        run: docker push ghcr.io/assetsart/easy-proxy:latest
