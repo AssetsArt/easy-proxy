@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # build stage
 FROM ghcr.io/rust-lang/rust:nightly-slim AS builder
+ENV DEBIAN_FRONTEND noninteractive
 # install for build
 RUN set -eux; \
     apt-get update \
