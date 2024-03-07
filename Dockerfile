@@ -5,6 +5,7 @@ RUN set -eux; \
     apk add --no-cache \
     libressl-dev \
     musl-dev \
+    gcc \
     pkgconfig
 
 WORKDIR /app
