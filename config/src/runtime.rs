@@ -37,9 +37,9 @@ pub struct Provider {
     pub watch: Option<bool>,
 }
 
-impl From<&Provider> for ProviderFiles {
+impl From<&Provider> for ProviderFile {
     fn from(p: &Provider) -> Self {
-        ProviderFiles {
+        ProviderFile {
             name: p.name.clone(),
             path: p
                 .path
@@ -51,7 +51,7 @@ impl From<&Provider> for ProviderFiles {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProviderFiles {
+pub struct ProviderFile {
     pub name: String,
     pub path: String,
     pub watch: bool,

@@ -122,9 +122,15 @@ impl ProxyHttp for Proxy {
             }
         };
         // modify the request headers
-        modify::headers(session, &services.routes.route);
+        modify::headers(
+            session,
+            services.route.add_headers.clone().unwrap_or_default(),
+            services.route.del_headers.clone().unwrap_or_default(),
+        );
         // rewrite the request
-        modify::rewrite(session, services.svc_path).await?;
+        if let Some(rewrite) = &services.svc_path.service.rewrite {
+            modify::rewrite(session, services.svc_path.path.clone(), rewrite.clone()).await?;
+        }
         // add the backend to the request headers
         session
             .req_header_mut()

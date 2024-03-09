@@ -6,17 +6,20 @@ service_selector:
 services:
   - name: backend_service
     algorithm: round_robin # round_robin, random, consistent, weighted
+    health_check:
+      path: /health
     endpoints:
-      - ip: 172.20.0.1
+      - ip: 127.0.0.1
         port: 3002
         weight: 1 # Optional
-      - ip: 172.20.0.1
-        port: 3003
-        weight: 1 # Optional
+      # - ip: 172.20.0.1
+      #   port: 3003
+      #   weight: 1 # Optional
 
 # A list of routes to be proxied 
 routes:
-  - host: mydomain.com
+  # - host: mydomain.com
+  - host: localhost:8088
     del_headers:
       - accept
     add_headers:

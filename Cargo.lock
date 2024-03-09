@@ -26,6 +26,7 @@ dependencies = [
  "cfg-if",
  "getrandom",
  "once_cell",
+ "serde",
  "version_check",
  "zerocopy",
 ]
@@ -282,6 +283,7 @@ dependencies = [
  "ahash",
  "anyhow",
  "fnv",
+ "http 1.0.0",
  "lazy_static",
  "matchit",
  "notify",
@@ -289,6 +291,7 @@ dependencies = [
  "pingora",
  "serde",
  "serde_yaml 0.9.32",
+ "tokio",
  "tracing",
 ]
 

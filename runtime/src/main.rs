@@ -18,7 +18,15 @@ fn main() {
             std::process::exit(1);
         }
     }
-    config::proxy::read_config();
+    match config::proxy::initialize() {
+        Ok(_) => {
+            tracing::info!("✅ Proxy config initialized");
+        }
+        Err(e) => {
+            tracing::error!("❌ Error initializing proxy config: {:?}", e);
+            std::process::exit(1);
+        }
+    }
 
     // create a new proxy
     proxy::Proxy::new_proxy()

@@ -1,9 +1,9 @@
-use config::proxy::{BackendType, ProxyConfig, ProxyRoute, SvcPath};
+use config::proxy::{BackendType, ProxyConfig, Route, ServicePath};
 use pingora::proxy::Session;
 
 pub struct Service {
-    pub routes: &'static ProxyRoute,
-    pub svc_path: &'static SvcPath,
+    pub route: &'static Route,
+    pub svc_path: &'static ServicePath,
     pub backend: &'static BackendType,
 }
 
@@ -14,14 +14,16 @@ pub fn find(session: &Session) -> Option<Service> {
     }
     // println!("Host: {:?}", host);
     let path = session.req_header().uri.path();
-    let proxy_config = config::proxy::get_backends()?;
-    let routes = find_routes(host, proxy_config, session)?;
-    let svc_path = find_service_path(path, routes)?;
-    // Some(routes.services.get(&svc_path.service.name)?)
+    let proxy_config = config::proxy::proxy_config()?;
+    let route = find_routes(host, proxy_config, session)?;
+    let svc_path = match route.paths.0.at(path) {
+        Ok(val) => val.value,
+        Err(_) => return None,
+    };
     let svc = Service {
-        routes,
+        route,
         svc_path,
-        backend: routes.services.get(&svc_path.service.name)?,
+        backend: &svc_path.service.backend,
     };
     Some(svc)
 }
@@ -30,7 +32,7 @@ fn find_routes(
     host: &str,
     proxy_config: &'static ProxyConfig,
     session: &Session,
-) -> Option<&'static ProxyRoute> {
+) -> Option<&'static Route> {
     match proxy_config.routes.get(host) {
         Some(val) => Some(val),
         None => {
@@ -38,8 +40,4 @@ fn find_routes(
             Some(proxy_config.routes.get(hkey.to_str().unwrap_or_default())?)
         }
     }
-}
-
-fn find_service_path(path: &str, routes: &'static ProxyRoute) -> Option<&'static SvcPath> {
-    routes.paths.at(path).ok().map(|v| v.value)
 }
