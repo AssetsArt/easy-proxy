@@ -14,3 +14,8 @@ notify = { workspace = true }
 matchit = { workspace = true }
 tracing = { workspace = true }
 ahash = { workspace = true }
+lazy_static = { workspace = true }
+once_cell = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+http = { workspace = true }

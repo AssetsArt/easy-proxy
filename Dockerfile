@@ -29,7 +29,7 @@ ENV TZ=Asia/Bangkok
 
 WORKDIR /app
 # copy app release
-COPY --from=builder /app/target/release/runtime ./easy-proxy
+COPY --from=builder /app/target/release/easy-proxy ./easy-proxy
 COPY .config .config
 
 # default run entrypoint

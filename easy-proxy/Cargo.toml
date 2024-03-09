@@ -1,5 +1,5 @@
 [package]
-name = "runtime"
+name = "easy-proxy"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,3 +11,4 @@ config = { path = "../config" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 mimalloc = { workspace = true }
+clap = { workspace = true }

@@ -50,6 +50,12 @@ pingora:
   # ca_file: /etc/ssl/certs/ca-certificates.crt
 ```
 
+Can be tested and reloaded using the following commands:
+```bash
+$ easy-proxy -t # Test the configuration file
+$ easy-proxy -r # Reload the configuration file
+```
+
 ### Service and Route Configuration
 ```yaml
 # Select the service to be proxied
