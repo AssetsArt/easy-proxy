@@ -25,7 +25,10 @@ use std::{
 use tracing;
 
 // Internal crate imports
-use super::{super::runtime::Provider, reload, Header, PathType, ProxyConfig, ServiceSelector};
+use super::{
+    super::runtime::Provider, reload, Header, PathType, ProxyConfig, ServiceSelector,
+    SvcHealthCheck,
+};
 
 // models
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -49,11 +52,6 @@ pub struct Service {
     pub algorithm: String,
     pub endpoints: Vec<Endpoint>,
     pub health_check: Option<SvcHealthCheck>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct SvcHealthCheck {
-    pub path: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -350,7 +348,6 @@ impl From<ConfigFile> for ProxyConfig {
                         weight: e.weight.unwrap_or(1) as usize,
                     });
                 }
-
                 match service.algorithm.as_str() {
                     "round_robin" => {
                         let hash: Arc<Weighted<RoundRobin>> = Arc::new(Weighted::build(&backends));

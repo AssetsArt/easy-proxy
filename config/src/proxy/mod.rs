@@ -110,6 +110,11 @@ pub struct ServiceSelector {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SvcHealthCheck {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ServiceRef {
     pub rewrite: Option<String>,
     pub name: String,
@@ -198,6 +203,33 @@ pub fn reload() -> Result<(), anyhow::Error> {
     }
     unsafe {
         GLOBAL_PROXY_CONFIG = Box::into_raw(Box::new(new_proxy_config));
+    }
+    Ok(())
+}
+
+pub fn validate() -> Result<(), anyhow::Error> {
+    let runtime_conf = runtime::config();
+    let providers = &runtime_conf.providers;
+    let mut errors: Vec<anyhow::Error> = vec![];
+    for provider in providers {
+        match provider.name.as_str() {
+            "files" => {
+                let files_conf = provider_files::get_config(provider)?;
+                match provider_files::validator(&files_conf) {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        errors.push(e);
+                    }
+                }
+            }
+            _ => {
+                // do nothing
+                tracing::warn!("Provider {} is not supported", provider.name);
+            }
+        }
+    }
+    if !errors.is_empty() {
+        return Err(anyhow::anyhow!("Validation failed {:#?}", errors));
     }
     Ok(())
 }
