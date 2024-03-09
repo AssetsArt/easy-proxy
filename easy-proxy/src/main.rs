@@ -8,7 +8,7 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 use clap::Parser;
-use std::io::{Write, Read};
+use std::io::{Read, Write};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -55,7 +55,8 @@ fn main() {
     if args.reload {
         match config::proxy::validate() {
             Ok(_) => {
-                let mut stream = UnixStream::connect("/tmp/easy-proxy.sock").expect("Failed to connect to socket");
+                let mut stream = UnixStream::connect("/tmp/easy-proxy.sock")
+                    .expect("Failed to connect to socket");
                 match stream.write_all(b"reload") {
                     Ok(_) => {
                         tracing::info!("✅ Proxy config reloaded");
@@ -87,13 +88,22 @@ fn main() {
     std::thread::spawn(|| {
         // remove the socket if it already exists
         let _ = std::fs::remove_file("/tmp/easy-proxy.sock");
-        let listener = std::os::unix::net::UnixListener::bind("/tmp/easy-proxy.sock").unwrap();
+        let listener = match std::os::unix::net::UnixListener::bind("/tmp/easy-proxy.sock") {
+            Ok(listener) => {
+                tracing::info!("✅ Listening on /tmp/easy-proxy.sock");
+                listener
+            }
+            Err(e) => {
+                tracing::error!("❌ {:?}", e);
+                std::process::exit(1);
+            }
+        };
         while let Ok((mut stream, _)) = listener.accept() {
             let mut buffer = [0; 1024];
             // println!("Received a connection");
             match stream.read(&mut buffer) {
                 Ok(_) => {
-                    let command = std::str::from_utf8(&buffer).unwrap();
+                    let command = std::str::from_utf8(&buffer).unwrap_or_default();
                     // println!("Command: {}", command);
                     if command.contains("reload") {
                         match config::proxy::reload() {
