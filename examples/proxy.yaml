@@ -18,8 +18,8 @@ services:
 
 # A list of routes to be proxied 
 routes:
-  - host: mydomain.com
-  # - host: localhost:8088
+  # - host: mydomain.com
+  - host: localhost:8088
     del_headers:
       - accept
     add_headers:

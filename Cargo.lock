@@ -494,6 +494,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "easy-proxy"
+version = "0.1.0"
+dependencies = [
+ "clap 4.5.2",
+ "config",
+ "mimalloc",
+ "proxy",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1759,18 +1771,6 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
-]
-
-[[package]]
-name = "runtime"
-version = "0.1.0"
-dependencies = [
- "clap 4.5.2",
- "config",
- "mimalloc",
- "proxy",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
