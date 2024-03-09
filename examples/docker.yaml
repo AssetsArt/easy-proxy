@@ -4,21 +4,21 @@ service_selector:
 
 # Services to be proxied
 services:
-  - name: backend_service
+  - name: backend_service_docker
     algorithm: round_robin # round_robin, random, consistent, weighted
     health_check:
       path: /health
     endpoints:
-      - ip: 127.0.0.1
+      - ip: 172.20.0.1
         port: 3002
         weight: 1 # Optional
-      # - ip: 172.20.0.1
-      #   port: 3003
-      #   weight: 1 # Optional
+      - ip: 172.20.0.1
+        port: 3003
+        weight: 1 # Optional
 
 # A list of routes to be proxied 
 routes:
-  - host: mydomain.com
+  - host: localhost:8088
     del_headers:
       - accept
     add_headers:
@@ -28,15 +28,13 @@ routes:
       - pathType: Exact # Exact, Prefix
         path: /
         service:
-          name: backend_service
+          name: backend_service_docker
+      - pathType: Exact # Exact, Prefix
+        path: /favicon.ico
+        service:
+          name: backend_service_docker
       - pathType: Prefix # Exact, Prefix
         path: /api/v1
         service:
           rewrite: /service/v1 # Optional
-          name: backend_service
-  # - header: svc.service1 # from header key "x-easy-proxy-svc"
-  #   paths:
-  #     - pathType: Prefix # Exact, Prefix
-  #       path: /svc/v1
-  #       service:
-  #         name: backend_service
+          name: backend_service_docker
