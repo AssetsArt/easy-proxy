@@ -1,4 +1,3 @@
-use crate::models::ProviderFiles;
 use ahash::AHashMap;
 use notify::{self, Event, Watcher};
 use pingora::{
@@ -21,6 +20,9 @@ use std::{
     path::Path,
     sync::{Arc, Once},
 };
+
+// internal crate
+use crate::runtime::ProviderFiles;
 
 #[derive(Clone, Deserialize)]
 pub struct ProxyConfigFile {
@@ -118,7 +120,7 @@ pub fn get_backends() -> Option<&'static ProxyConfig> {
 
 // read proxy config from file
 pub fn read_config() {
-    let app_config = super::app_config();
+    let app_config = super::runtime::config();
     let providers = &app_config.providers;
     for provider in providers {
         match provider.name.as_str() {

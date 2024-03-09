@@ -18,7 +18,7 @@ pub struct Proxy {}
 
 impl Proxy {
     pub fn new_proxy() -> Result<Server, anyhow::Error> {
-        let app_conf = &config::app_config();
+        let app_conf = &config::runtime::config();
         let proxy = Proxy {};
         let mut opt = Opt::default();
         if let Some(conf) = &app_conf.pingora.daemon {

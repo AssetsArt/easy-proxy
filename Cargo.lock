@@ -280,9 +280,12 @@ name = "config"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "anyhow",
  "fnv",
+ "lazy_static",
  "matchit",
  "notify",
+ "once_cell",
  "pingora",
  "serde",
  "serde_yaml 0.9.32",
