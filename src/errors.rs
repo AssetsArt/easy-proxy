@@ -5,7 +5,9 @@ pub enum Errors {
     #[error("Configuration error: {0}")]
     ConfigError(String),
     #[error("Pingora error: {0}")]
-    PingoraError(Box<dyn std::error::Error>),
+    PingoraError(String),
     #[error("Service not found: {0}")]
     ServiceNotFound(String),
+    #[error("Proxy error: {0}")]
+    ProxyError(String),
 }

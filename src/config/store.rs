@@ -1,4 +1,4 @@
-use super::proxy::{ProxyConfig, ServiceReference};
+use super::proxy::{Path, ProxyConfig, ServiceReference};
 use crate::errors::Errors;
 use once_cell::sync::OnceCell;
 use pingora::{
@@ -52,6 +52,7 @@ pub struct Service {
 
 #[derive(Debug, Clone)]
 pub struct Route {
+    pub path: Path,
     pub service: ServiceReference,
 }
 
@@ -91,7 +92,7 @@ pub async fn load_backend_type(
             match upstreams.update().await {
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(Errors::PingoraError(e.into()));
+                    return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
             BackendType::RoundRobin(Arc::new(upstreams), format!("{:#?}", "backends"))
@@ -102,7 +103,7 @@ pub async fn load_backend_type(
             match backend.update().await {
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(Errors::PingoraError(e.into()));
+                    return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
             BackendType::Weighted(Arc::new(backend), format!("{:#?}", "backends"))
@@ -112,7 +113,7 @@ pub async fn load_backend_type(
             match backend.update().await {
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(Errors::PingoraError(e.into()));
+                    return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
             BackendType::Consistent(Arc::new(backend), format!("{:#?}", "backends"))
@@ -122,7 +123,7 @@ pub async fn load_backend_type(
             match upstreams.update().await {
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(Errors::PingoraError(e.into()));
+                    return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
             BackendType::Random(Arc::new(upstreams), format!("{:#?}", "backends"))
@@ -172,6 +173,7 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                     for path in route.paths.iter().flatten() {
                         let path_type = path.path_type.clone();
                         let r = Route {
+                            path: path.clone(),
                             service: path.service.clone(),
                         };
                         match routes.insert(path.path.clone(), r.clone()) {

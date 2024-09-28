@@ -1,4 +1,5 @@
 mod backend;
+mod request_modifiers;
 mod response;
 
 use crate::{config, errors::Errors};
@@ -22,7 +23,8 @@ impl EasyProxy {
         if let Some(conf) = &app_conf.pingora.daemon {
             opt.daemon = *conf;
         }
-        let mut pingora_server = Server::new(Some(opt)).map_err(|e| Errors::PingoraError(e))?;
+        let mut pingora_server =
+            Server::new(Some(opt)).map_err(|e| Errors::PingoraError(format!("{}", e)))?;
         let mut conf = ServerConf::default();
         if let Some(threads) = app_conf.pingora.threads {
             conf.threads = threads;
@@ -169,8 +171,9 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
-        let selection_key = format!("{}:{}", ip, path);
+
         let service_ref = &matched.value.service;
+        let selection_key = format!("{}:{}", ip, path);
         let service = match store_conf.services.get(&service_ref.name) {
             Some(s) => s,
             None => {
@@ -181,14 +184,31 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
-        let Ok(backend) = backend::selection(&selection_key, service) else {
-            res.status(404).body_json(json!({
-                "error": "CONFIG_ERROR",
-                "message": "No backend found for service",
-            }));
-            return Ok(res.send(session).await);
+        ctx.backend = match backend::selection(&selection_key, service) {
+            Ok(b) => b,
+            Err(e) => {
+                res.status(500).body_json(json!({
+                    "error": "CONFIG_ERROR",
+                    "message": e.to_string(),
+                }));
+                return Ok(res.send(session).await);
+            }
         };
-        ctx.backend = backend;
+
+        // modify the request
+        match request_modifiers::rewrite(session, &matched.value.path.path, &service_ref.rewrite)
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => {
+                res.status(500).body_json(json!({
+                    "error": "MODIFY_ERROR",
+                    "message": e.to_string(),
+                }));
+                return Ok(res.send(session).await);
+            }
+        }
+
         // return false to continue processing the request
         Ok(false)
     }
