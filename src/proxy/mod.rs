@@ -196,9 +196,8 @@ impl ProxyHttp for EasyProxy {
         };
 
         // modify the request
-        match request_modifiers::rewrite(session, &matched.value.path.path, &service_ref.rewrite)
-            .await
-        {
+        let route = matched.value;
+        match request_modifiers::rewrite(session, &route.path.path, &service_ref.rewrite).await {
             Ok(_) => {}
             Err(e) => {
                 res.status(500).body_json(json!({
@@ -208,6 +207,11 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         }
+        request_modifiers::headers(
+            session,
+            route.add_headers.clone(),
+            route.remove_headers.clone(),
+        );
 
         // return false to continue processing the request
         Ok(false)

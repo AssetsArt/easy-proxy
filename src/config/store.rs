@@ -1,4 +1,4 @@
-use super::proxy::{Path, ProxyConfig, ServiceReference};
+use super::proxy::{Header, Path, ProxyConfig, ServiceReference};
 use crate::errors::Errors;
 use once_cell::sync::OnceCell;
 use pingora::{
@@ -54,6 +54,8 @@ pub struct Service {
 pub struct Route {
     pub path: Path,
     pub service: ServiceReference,
+    pub remove_headers: Option<Vec<String>>,
+    pub add_headers: Option<Vec<Header>>,
 }
 
 #[derive(Debug, Clone)]
@@ -175,6 +177,8 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                         let r = Route {
                             path: path.clone(),
                             service: path.service.clone(),
+                            remove_headers: route.remove_headers.clone(),
+                            add_headers: route.add_headers.clone(),
                         };
                         match routes.insert(path.path.clone(), r.clone()) {
                             Ok(_) => {}

@@ -1,5 +1,22 @@
-use crate::errors::Errors;
+use crate::{config::proxy::Header, errors::Errors};
 use pingora::proxy::Session;
+
+pub fn headers(
+    session: &mut Session,
+    add_headers: Option<Vec<Header>>,
+    remove_headers: Option<Vec<String>>,
+) {
+    for header in remove_headers.iter().flatten() {
+        let _ = session.req_header_mut().remove_header(header.as_str());
+    }
+    for header in add_headers.iter().flatten() {
+        let name = header.name.clone();
+        let _ = session
+            .req_header_mut()
+            .append_header(name, header.value.as_str())
+            .is_ok();
+    }
+}
 
 pub async fn rewrite(
     session: &mut Session,

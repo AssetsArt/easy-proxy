@@ -47,7 +47,7 @@ pub struct RouteCondition {
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Header {
     pub name: String,
     pub value: String,
