@@ -1,9 +1,10 @@
+mod response;
+
 use crate::{config, errors::Errors};
 use async_trait::async_trait;
 use pingora::{
-    http::ResponseHeader,
+    lb::Backend,
     prelude::{HttpPeer, Opt},
-    protocols::http::HttpTask,
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
 };
@@ -76,47 +77,76 @@ impl EasyProxy {
     }
 }
 
+pub struct Context {
+    pub backend: Backend,
+}
+
 #[async_trait]
 impl ProxyHttp for EasyProxy {
-    type CTX = ();
-    fn new_ctx(&self) -> Self::CTX {}
+    type CTX = Context;
+    fn new_ctx(&self) -> Self::CTX {
+        Context {
+            // Set the default backend
+            backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
+        }
+    }
 
     async fn request_filter(
         &self,
         session: &mut Session,
-        _ctx: &mut Self::CTX,
+        ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
-        let mut header = ResponseHeader::build(200, None).unwrap();
-        let _ = header.append_header("Content-Type", "text/plain");
-        let body = bytes::Bytes::from("Hello, World!");
-        let _ = header.append_header("Content-Length", body.len().to_string());
-        let tasks = vec![
-            HttpTask::Header(Box::new(header), true),
-            HttpTask::Body(Some(body), true),
-            HttpTask::Done,
-        ];
-        match session.response_duplex_vec(tasks).await {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error sending response: {:?}", e);
-                session.respond_error(500).await?;
+        let mut res = response::Response::new();
+        let path = session.req_header().uri.path();
+        let host = match session.get_header("host") {
+            Some(h) => match h.to_str() {
+                Ok(h) => h,
+                Err(e) => {
+                    res.status(400)
+                        .body(format!("Error parsing host header: {:?}", e).into());
+                    return Ok(res.send(session).await);
+                }
+            },
+            None => "",
+        };
+        let store_conf = match config::store::get() {
+            Some(conf) => conf,
+            None => {
+                res.status(500).body("No configuration found".into());
+                return Ok(res.send(session).await);
             }
-        }
+        };
+        let route = match store_conf.host_routes.get(host) {
+            Some(r) => r,
+            None => {
+                res.status(404).body("No route found".into());
+                return Ok(res.send(session).await);
+            }
+        };
+        let matched = match route.at(path) {
+            Ok(m) => m,
+            Err(e) => {
+                res.status(404)
+                    .body(format!("Error matching route: {:?}", e).into());
+                return Ok(res.send(session).await);
+            }
+        };
+        let service_name = &matched.value.service;
+        let Ok((backend, _)) = store_conf.get_backend(service_name) else {
+            res.status(404).body("No backend found".into());
+            return Ok(res.send(session).await);
+        };
+        ctx.backend = backend;
         // return false to continue processing the request
-        Ok(true)
+        Ok(false)
     }
 
     async fn upstream_peer(
         &self,
         _session: &mut Session,
-        _ctx: &mut Self::CTX,
+        ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
-        println!("Upstream Peer");
-        let peer = Box::new(HttpPeer::new(
-            "1.1.1.1",
-            false,
-            "one.one.one.one".to_string(),
-        ));
-        Ok(peer)
+        let peer = HttpPeer::new(&ctx.backend.addr, false, "one.one.one.one".to_string());
+        Ok(Box::new(peer))
     }
 }

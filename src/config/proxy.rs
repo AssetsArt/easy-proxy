@@ -2,8 +2,11 @@ use crate::{config::runtime, errors::Errors};
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::BufReader, path::PathBuf};
 
+use super::store;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProxyConfig {
+    pub header_selector: Option<String>,
     pub routes: Option<Vec<Route>>,
     pub services: Option<Vec<Service>>,
 }
@@ -41,7 +44,6 @@ pub struct Route {
 pub struct RouteCondition {
     #[serde(rename = "type")]
     pub condition_type: String,
-    pub key: Option<String>,
     pub value: String,
 }
 
@@ -100,6 +102,7 @@ pub fn load() -> Result<(), Errors> {
         })?;
         configs.push(config);
     }
-    println!("Configs: {:#?}", configs);
+    // println!("Configs: {:#?}", configs);
+    store::load(configs);
     Ok(())
 }

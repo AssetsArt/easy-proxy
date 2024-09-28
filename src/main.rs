@@ -23,7 +23,7 @@ fn main() {
             std::process::exit(1);
         }
     }
-
+    // println!("{:#?}", config::store::get());
     // create a new proxy
     proxy::EasyProxy::new_proxy()
         .map_err(|e| tracing::error!("Error: {:?}", e))
