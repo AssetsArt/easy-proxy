@@ -56,6 +56,7 @@ pub struct Route {
     pub service: ServiceReference,
     pub remove_headers: Option<Vec<String>>,
     pub add_headers: Option<Vec<Header>>,
+    // pub route_condition: RouteCondition,
 }
 
 #[derive(Debug, Clone)]
@@ -63,9 +64,10 @@ pub struct ProxyStore {
     pub header_selector: String,
     pub services: HashMap<String, Service>,
     pub host_routes: HashMap<String, matchit::Router<Route>>,
+    pub header_routes: HashMap<String, matchit::Router<Route>>,
 }
 
-pub async fn load_backend_type(
+async fn load_backend_type(
     svc: &crate::config::proxy::Service,
     endpoints: &Vec<crate::config::proxy::Endpoint>,
 ) -> Result<BackendType, Errors> {
@@ -146,6 +148,7 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
         header_selector: String::new(),
         services: HashMap::new(),
         host_routes: HashMap::new(),
+        header_routes: HashMap::new(),
     };
 
     // Process services
@@ -170,17 +173,27 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
         }
         if let Some(routes) = &config.routes {
             for route in routes {
-                if route.route.condition_type == "host" {
-                    let mut routes = matchit::Router::<Route>::new();
-                    for path in route.paths.iter().flatten() {
-                        let path_type = path.path_type.clone();
-                        let r = Route {
-                            path: path.clone(),
-                            service: path.service.clone(),
-                            remove_headers: route.remove_headers.clone(),
-                            add_headers: route.add_headers.clone(),
-                        };
-                        match routes.insert(path.path.clone(), r.clone()) {
+                let mut routes = matchit::Router::<Route>::new();
+                for path in route.paths.iter().flatten() {
+                    let path_type = path.path_type.clone();
+                    let r = Route {
+                        path: path.clone(),
+                        service: path.service.clone(),
+                        remove_headers: route.remove_headers.clone(),
+                        add_headers: route.add_headers.clone(),
+                        // route_condition: route.route.clone(),
+                    };
+                    match routes.insert(path.path.clone(), r.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            return Err(Errors::ConfigError(format!(
+                                "Unable to insert route: {:?}",
+                                e
+                            )));
+                        }
+                    }
+                    if path_type == *"Prefix" {
+                        match routes.insert(format!("{}/{{path}}", path.path.clone()), r) {
                             Ok(_) => {}
                             Err(e) => {
                                 return Err(Errors::ConfigError(format!(
@@ -189,19 +202,14 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                                 )));
                             }
                         }
-                        if path_type == *"Prefix" {
-                            match routes.insert(format!("{}/{{path}}", path.path.clone()), r) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    return Err(Errors::ConfigError(format!(
-                                        "Unable to insert route: {:?}",
-                                        e
-                                    )));
-                                }
-                            }
-                        }
                     }
+                }
+                if route.route.condition_type == *"host" {
                     store.host_routes.insert(route.route.value.clone(), routes);
+                } else {
+                    store
+                        .header_routes
+                        .insert(route.route.value.clone(), routes);
                 }
             }
         }

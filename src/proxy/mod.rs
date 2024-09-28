@@ -104,7 +104,6 @@ impl ProxyHttp for EasyProxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
-
         // create a new response
         let mut res = response::Response::new();
         // get the path
@@ -142,15 +141,47 @@ impl ProxyHttp for EasyProxy {
             }
         };
 
+        // get the `header_selector`
+        let header_selector = session
+            .req_header()
+            .headers
+            .get(store_conf.header_selector.as_str());
+        let header_selector = match header_selector {
+            Some(h) => match h.to_str() {
+                Ok(h) => h,
+                Err(e) => {
+                    res.status(400).body_json(json!({
+                        "error": "PARSE_ERROR",
+                        "message": e.to_string(),
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            },
+            None => "",
+        };
+
         // get the route
-        let route = match store_conf.host_routes.get(host) {
-            Some(r) => r,
-            None => {
-                res.status(404).body_json(json!({
-                    "error": "CONFIG_ERROR",
-                    "message": "No route found for host",
-                }));
-                return Ok(res.send(session).await);
+        let route = if !header_selector.is_empty() {
+            match store_conf.header_routes.get(header_selector) {
+                Some(r) => r,
+                None => {
+                    res.status(404).body_json(json!({
+                        "error": "CONFIG_ERROR",
+                        "message": "No route found for header",
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            }
+        } else {
+            match store_conf.host_routes.get(host) {
+                Some(r) => r,
+                None => {
+                    res.status(404).body_json(json!({
+                        "error": "CONFIG_ERROR",
+                        "message": "No route found for host",
+                    }));
+                    return Ok(res.send(session).await);
+                }
             }
         };
 

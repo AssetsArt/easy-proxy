@@ -40,7 +40,7 @@ pub struct Route {
     pub paths: Option<Vec<Path>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RouteCondition {
     #[serde(rename = "type")]
     pub condition_type: String,
