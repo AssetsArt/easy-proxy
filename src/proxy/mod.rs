@@ -1,11 +1,9 @@
-use std::time::Duration;
-
 use crate::{config, errors::Errors};
 use async_trait::async_trait;
 use pingora::{
     http::ResponseHeader,
     prelude::{HttpPeer, Opt},
-    protocols::{http::HttpTask, l4::stream::AsyncWriteVec},
+    protocols::http::HttpTask,
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
 };
