@@ -7,7 +7,7 @@ use std::{env, fs::File, io::BufReader, path::PathBuf};
 pub struct RuntimeConfig {
     pub proxy: Proxy,
     pub pingora: Pingora,
-    // pub providers: Vec<Provider>,
+    pub config_dir: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -36,9 +36,8 @@ pub fn initialize() -> Result<(), Errors> {
     let conf_path = if let Ok(val) = env::var("EASY_PROXY_CONF") {
         PathBuf::from(val)
     } else {
-        let mut conf_path = env::current_dir().map_err(|e| {
-            Errors::ConfigError(format!("Unable to get current directory: {}", e))
-        })?;
+        let mut conf_path = env::current_dir()
+            .map_err(|e| Errors::ConfigError(format!("Unable to get current directory: {}", e)))?;
         conf_path.push(".config/easy_proxy.yaml");
         conf_path
     };
@@ -48,7 +47,10 @@ pub fn initialize() -> Result<(), Errors> {
     })?;
     let reader = BufReader::new(file);
     let config: RuntimeConfig = serde_yml::from_reader(reader).map_err(|e| {
-        Errors::ConfigError(format!("Unable to parse config file {:?}: {}", conf_path, e))
+        Errors::ConfigError(format!(
+            "Unable to parse config file {:?}: {}",
+            conf_path, e
+        ))
     })?;
 
     GLOBAL_RUNTIME_CONFIG

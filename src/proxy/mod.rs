@@ -93,7 +93,7 @@ impl ProxyHttp for EasyProxy {
         let tasks = vec![
             HttpTask::Header(Box::new(header), true),
             HttpTask::Body(Some(body), true),
-            HttpTask::Done
+            HttpTask::Done,
         ];
         match session.response_duplex_vec(tasks).await {
             Ok(_) => {}

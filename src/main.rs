@@ -2,14 +2,21 @@ mod config;
 pub mod errors;
 mod proxy;
 
-use config::runtime::initialize;
-
 fn main() {
     // initialize the logger
     tracing_subscriber::fmt::init();
-    match initialize() {
+    match config::runtime::initialize() {
         Ok(_) => {
             tracing::info!("Configuration initialized successfully");
+        }
+        Err(e) => {
+            tracing::error!("Error: {:?}", e);
+            std::process::exit(1);
+        }
+    }
+    match config::proxy::load() {
+        Ok(_) => {
+            tracing::info!("Proxy configuration loaded successfully");
         }
         Err(e) => {
             tracing::error!("Error: {:?}", e);
