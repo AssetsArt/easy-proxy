@@ -79,6 +79,8 @@ impl EasyProxy {
 
 pub struct Context {
     pub backend: Backend,
+    pub sni: String,
+    pub tls: bool,
 }
 
 #[async_trait]
@@ -88,6 +90,8 @@ impl ProxyHttp for EasyProxy {
         Context {
             // Set the default backend
             backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
+            sni: "one.one.one.one".to_string(),
+            tls: false,
         }
     }
 
@@ -109,6 +113,9 @@ impl ProxyHttp for EasyProxy {
             },
             None => "",
         };
+        if !host.is_empty() {
+            ctx.sni = host.to_string();
+        }
         let store_conf = match config::store::get() {
             Some(conf) => conf,
             None => {
@@ -146,7 +153,7 @@ impl ProxyHttp for EasyProxy {
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
-        let peer = HttpPeer::new(&ctx.backend.addr, false, "one.one.one.one".to_string());
+        let peer = HttpPeer::new(&ctx.backend.addr, ctx.tls, ctx.sni.clone());
         Ok(Box::new(peer))
     }
 }
