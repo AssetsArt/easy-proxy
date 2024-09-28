@@ -189,8 +189,8 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                                 )));
                             }
                         }
-                        if path_type == "Prefix" {
-                            match routes.insert(format!("{}/:path", path.path.clone()), r) {
+                        if path_type == *"Prefix" {
+                            match routes.insert(format!("{}/{{path}}", path.path.clone()), r) {
                                 Ok(_) => {}
                                 Err(e) => {
                                     return Err(Errors::ConfigError(format!(
