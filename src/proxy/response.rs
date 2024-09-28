@@ -36,7 +36,9 @@ impl Response {
     }
 
     pub fn body_json(&mut self, body: serde_json::Value) -> &mut Self {
-        self.body(bytes::Bytes::from(serde_json::to_vec(&body).expect("Unable to serialize body")));
+        self.body(bytes::Bytes::from(
+            serde_json::to_vec(&body).expect("Unable to serialize body"),
+        ));
         self.header("Content-Type".to_string(), "application/json".to_string());
         self
     }

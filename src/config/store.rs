@@ -135,7 +135,7 @@ impl ProxyStore {
     }
 }
 
-pub fn load(configs: Vec<ProxyConfig>) {
+pub fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
     let default_header_selector = "x-easy-proxy-svc";
     let mut store = ProxyStore {
         header_selector: String::new(),
@@ -152,9 +152,10 @@ pub fn load(configs: Vec<ProxyConfig>) {
                     let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
                         Ok(val) => val,
                         Err(e) => {
-                            // println!("Unable to parse address: {:?}", e);
-                            tracing::error!("Unable to parse address: {:?}", e);
-                            continue;
+                            return Err(Errors::ConfigError(format!(
+                                "Unable to parse address: {}",
+                                e
+                            )));
                         }
                     };
                     backends.insert(Backend {
@@ -186,8 +187,10 @@ pub fn load(configs: Vec<ProxyConfig>) {
                         BackendType::Random(backend, format!("{:#?}", backends))
                     }
                     _ => {
-                        tracing::warn!("Unsupported algorithm: {}", svc.algorithm);
-                        continue;
+                        return Err(Errors::ConfigError(format!(
+                            "Unknown algorithm: {}",
+                            svc.algorithm
+                        )));
                     }
                 };
 
@@ -220,14 +223,20 @@ pub fn load(configs: Vec<ProxyConfig>) {
                         match routes.insert(path.path.clone(), r.clone()) {
                             Ok(_) => {}
                             Err(e) => {
-                                tracing::error!("Unable to insert route: {:?}", e);
+                                return Err(Errors::ConfigError(format!(
+                                    "Unable to insert route: {:?}",
+                                    e
+                                )));
                             }
                         }
                         if path_type == "Prefix" {
                             match routes.insert(format!("{}/:path", path.path.clone()), r) {
                                 Ok(_) => {}
                                 Err(e) => {
-                                    tracing::error!("Unable to insert route: {:?}", e);
+                                    return Err(Errors::ConfigError(format!(
+                                        "Unable to insert route: {:?}",
+                                        e
+                                    )));
                                 }
                             }
                         }
@@ -243,7 +252,10 @@ pub fn load(configs: Vec<ProxyConfig>) {
         store.header_selector = default_header_selector.to_string();
     }
 
-    // Load configs into the global proxy store
+    Ok(store)
+}
+
+pub fn set(store: ProxyStore) {
     if GLOBAL_PROXY_CONFIG.set(store).is_err() {
         tracing::warn!("Global proxy store has already been set");
     }

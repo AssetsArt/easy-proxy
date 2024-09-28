@@ -103,6 +103,14 @@ pub fn load() -> Result<(), Errors> {
         configs.push(config);
     }
     // println!("Configs: {:#?}", configs);
-    store::load(configs);
+    match store::load(configs) {
+        Ok(conf) => {
+            store::set(conf);
+        }
+        Err(e) => {
+            tracing::error!("{:?}", e);
+            return Err(e);
+        }
+    }
     Ok(())
 }

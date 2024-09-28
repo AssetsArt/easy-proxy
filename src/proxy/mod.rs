@@ -107,11 +107,10 @@ impl ProxyHttp for EasyProxy {
             Some(h) => match h.to_str() {
                 Ok(h) => h,
                 Err(e) => {
-                    res.status(400)
-                        .body_json(json!({
-                            "error": "PARSE_ERROR",
-                            "message": e.to_string(),
-                        }));
+                    res.status(400).body_json(json!({
+                        "error": "PARSE_ERROR",
+                        "message": e.to_string(),
+                    }));
                     return Ok(res.send(session).await);
                 }
             },
@@ -143,11 +142,10 @@ impl ProxyHttp for EasyProxy {
         let matched = match route.at(path) {
             Ok(m) => m,
             Err(e) => {
-                res.status(404)
-                    .body_json(json!({
-                        "error": "ROUTE_ERROR",
-                        "message": e.to_string(),
-                    }));
+                res.status(404).body_json(json!({
+                    "error": "ROUTE_ERROR",
+                    "message": e.to_string(),
+                }));
                 return Ok(res.send(session).await);
             }
         };
