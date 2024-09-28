@@ -1,14 +1,15 @@
-use config::proxy::Header;
+use crate::{config::proxy::Header, errors::Errors};
 use pingora::proxy::Session;
 
-// internal crate
-use crate::response;
-
-pub fn headers(session: &mut Session, add_headers: Vec<Header>, del_headers: Vec<String>) {
-    for header in del_headers {
+pub fn headers(
+    session: &mut Session,
+    add_headers: Option<Vec<Header>>,
+    remove_headers: Option<Vec<String>>,
+) {
+    for header in remove_headers.iter().flatten() {
         let _ = session.req_header_mut().remove_header(header.as_str());
     }
-    for header in add_headers {
+    for header in add_headers.iter().flatten() {
         let name = header.name.clone();
         let _ = session
             .req_header_mut()
@@ -19,12 +20,15 @@ pub fn headers(session: &mut Session, add_headers: Vec<Header>, del_headers: Vec
 
 pub async fn rewrite(
     session: &mut Session,
-    path: String,
-    rewrite: String,
-) -> pingora::Result<bool> {
+    path: &str,
+    rewrite: &Option<String>,
+) -> Result<(), Errors> {
+    let Some(rewrite) = rewrite else {
+        return Ok(());
+    };
     let query = session.req_header().uri.query();
     let old_path = session.req_header().uri.path();
-    let rewrite = old_path.replace(path.as_str(), rewrite.as_str());
+    let rewrite = old_path.replace(path, rewrite.as_str());
     let mut uri = rewrite;
     if let Some(q) = query {
         uri.push('?');
@@ -34,12 +38,11 @@ pub async fn rewrite(
         let rewrite = match http::uri::Uri::builder().path_and_query(uri).build() {
             Ok(val) => val,
             Err(e) => {
-                tracing::error!("Error building uri: {}", e);
-                return response::service_unavailable(session).await;
+                return Err(Errors::ProxyError(format!("Unable to build URI: {}", e)));
             }
         };
         session.req_header_mut().set_uri(rewrite.clone());
     }
-    // return false to continue processing the request
-    Ok(false)
+    // println!("session: {:#?}", session.req_header());
+    Ok(())
 }
