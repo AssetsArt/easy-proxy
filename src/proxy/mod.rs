@@ -104,8 +104,13 @@ impl ProxyHttp for EasyProxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
+
+        // create a new response
         let mut res = response::Response::new();
+        // get the path
         let path = session.req_header().uri.path();
+
+        // get the host
         let host = match session.get_header("host") {
             Some(h) => match h.to_str() {
                 Ok(h) => h,
@@ -119,9 +124,13 @@ impl ProxyHttp for EasyProxy {
             },
             None => "",
         };
+
+        // set the SNI
         if !host.is_empty() {
             ctx.sni = host.to_string();
         }
+
+        // get the store configuration
         let store_conf = match config::store::get() {
             Some(conf) => conf,
             None => {
@@ -132,6 +141,8 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
+
+        // get the route
         let route = match store_conf.host_routes.get(host) {
             Some(r) => r,
             None => {
@@ -142,6 +153,8 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
+
+        // match the route
         let matched = match route.at(path) {
             Ok(m) => m,
             Err(e) => {
@@ -172,8 +185,29 @@ impl ProxyHttp for EasyProxy {
             }
         };
 
+        // prepare the selection key
         let service_ref = &matched.value.service;
         let selection_key = format!("{}:{}", ip, path);
+
+        // modify the request
+        let route = matched.value;
+        match request_modifiers::rewrite(session, &route.path.path, &service_ref.rewrite).await {
+            Ok(_) => {}
+            Err(e) => {
+                res.status(500).body_json(json!({
+                    "error": "MODIFY_ERROR",
+                    "message": e.to_string(),
+                }));
+                return Ok(res.send(session).await);
+            }
+        }
+        request_modifiers::headers(
+            session,
+            route.add_headers.clone(),
+            route.remove_headers.clone(),
+        );
+
+        // select the backend for http service
         let service = match store_conf.services.get(&service_ref.name) {
             Some(s) => s,
             None => {
@@ -194,24 +228,6 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
-
-        // modify the request
-        let route = matched.value;
-        match request_modifiers::rewrite(session, &route.path.path, &service_ref.rewrite).await {
-            Ok(_) => {}
-            Err(e) => {
-                res.status(500).body_json(json!({
-                    "error": "MODIFY_ERROR",
-                    "message": e.to_string(),
-                }));
-                return Ok(res.send(session).await);
-            }
-        }
-        request_modifiers::headers(
-            session,
-            route.add_headers.clone(),
-            route.remove_headers.clone(),
-        );
 
         // return false to continue processing the request
         Ok(false)
