@@ -3,3 +3,4 @@ Cargo.lock
 *.pdb
 /target
 .config
+.DS_Store
