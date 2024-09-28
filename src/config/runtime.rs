@@ -38,7 +38,7 @@ pub fn initialize() -> Result<(), Errors> {
     } else {
         let mut conf_path = env::current_dir()
             .map_err(|e| Errors::ConfigError(format!("Unable to get current directory: {}", e)))?;
-        conf_path.push(".config/easy_proxy.yaml");
+        conf_path.push("/etc/easy_proxy/conf.yaml");
         conf_path
     };
 
