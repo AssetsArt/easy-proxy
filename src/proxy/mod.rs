@@ -8,6 +8,7 @@ use pingora::{
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
 };
+use serde_json::json;
 
 #[derive(Debug, Clone)]
 pub struct EasyProxy {}
@@ -107,7 +108,10 @@ impl ProxyHttp for EasyProxy {
                 Ok(h) => h,
                 Err(e) => {
                     res.status(400)
-                        .body(format!("Error parsing host header: {:?}", e).into());
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": e.to_string(),
+                        }));
                     return Ok(res.send(session).await);
                 }
             },
@@ -119,14 +123,20 @@ impl ProxyHttp for EasyProxy {
         let store_conf = match config::store::get() {
             Some(conf) => conf,
             None => {
-                res.status(500).body("No configuration found".into());
+                res.status(500).body_json(json!({
+                    "error": "CONFIG_ERROR",
+                    "message": "Store configuration not found",
+                }));
                 return Ok(res.send(session).await);
             }
         };
         let route = match store_conf.host_routes.get(host) {
             Some(r) => r,
             None => {
-                res.status(404).body("No route found".into());
+                res.status(404).body_json(json!({
+                    "error": "CONFIG_ERROR",
+                    "message": "No route found for host",
+                }));
                 return Ok(res.send(session).await);
             }
         };
@@ -134,13 +144,19 @@ impl ProxyHttp for EasyProxy {
             Ok(m) => m,
             Err(e) => {
                 res.status(404)
-                    .body(format!("Error matching route: {:?}", e).into());
+                    .body_json(json!({
+                        "error": "ROUTE_ERROR",
+                        "message": e.to_string(),
+                    }));
                 return Ok(res.send(session).await);
             }
         };
         let service_name = &matched.value.service;
         let Ok((backend, _)) = store_conf.get_backend(service_name) else {
-            res.status(404).body("No backend found".into());
+            res.status(404).body_json(json!({
+                "error": "CONFIG_ERROR",
+                "message": "No backend found for service",
+            }));
             return Ok(res.send(session).await);
         };
         ctx.backend = backend;

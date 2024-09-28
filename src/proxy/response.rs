@@ -35,6 +35,12 @@ impl Response {
         self
     }
 
+    pub fn body_json(&mut self, body: serde_json::Value) -> &mut Self {
+        self.body(bytes::Bytes::from(serde_json::to_vec(&body).expect("Unable to serialize body")));
+        self.header("Content-Type".to_string(), "application/json".to_string());
+        self
+    }
+
     pub async fn send(&self, session: &mut Session) -> bool {
         let tasks = vec![
             HttpTask::Header(Box::new(self.headers.clone()), true),
