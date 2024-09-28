@@ -57,6 +57,9 @@ impl EasyProxy {
                 conf.ca_file = Some(ca_file.clone());
             }
         }
+        if let Some(upstream_keepalive_pool_size) = app_conf.pingora.upstream_keepalive_pool_size {
+            conf.upstream_keepalive_pool_size = upstream_keepalive_pool_size;
+        }
         pingora_server.configuration = conf.into();
         pingora_server.bootstrap();
         let mut pingora_svc =

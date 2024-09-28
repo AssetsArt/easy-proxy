@@ -26,6 +26,7 @@ pub struct Pingora {
     pub user: Option<String>,
     pub group: Option<String>,
     pub ca_file: Option<String>,
+    pub upstream_keepalive_pool_size: Option<usize>,
 }
 
 // Initialize global configuration
