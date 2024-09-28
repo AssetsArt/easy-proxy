@@ -5,6 +5,24 @@ use std::{fs::File, io::BufReader, path::PathBuf};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProxyConfig {
     pub routes: Option<Vec<Route>>,
+    pub services: Option<Vec<Service>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Service {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub service_type: String,
+    pub algorithm: String,
+    pub endpoints: Vec<Endpoint>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Endpoint {
+    pub ip: String,
+    pub port: u16,
+    #[serde(default)]
+    pub weight: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,7 +41,7 @@ pub struct Route {
 pub struct RouteCondition {
     #[serde(rename = "type")]
     pub condition_type: String,
-    pub key: String,
+    pub key: Option<String>,
     pub value: String,
 }
 
@@ -38,11 +56,11 @@ pub struct Path {
     #[serde(rename = "pathType")]
     pub path_type: String,
     pub path: String,
-    pub service: Service,
+    pub service: ServiceReference,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Service {
+pub struct ServiceReference {
     pub name: String,
     #[serde(default)]
     pub rewrite: Option<String>,
