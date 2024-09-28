@@ -3,30 +3,27 @@ use crate::errors::Errors;
 use once_cell::sync::OnceCell;
 use pingora::{
     lb::{
+        discovery,
         selection::{
             algorithms::{Random, RoundRobin},
-            consistent::{KetamaHashing, OwnedNodeIterator},
-            weighted::{Weighted, WeightedIterator},
-            BackendIter, BackendSelection,
+            consistent::KetamaHashing,
+            weighted::Weighted,
         },
-        Backend,
+        Backend, Backends, LoadBalancer,
     },
     protocols::l4::socket::SocketAddr,
 };
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Mutex,
-};
 
 static GLOBAL_PROXY_CONFIG: OnceCell<ProxyStore> = OnceCell::new();
 
 #[derive(Clone)]
 pub enum BackendType {
-    RoundRobin(Arc<Mutex<WeightedIterator<RoundRobin>>>, String),
-    Weighted(Arc<Mutex<WeightedIterator<fnv::FnvHasher>>>, String),
-    Consistent(Arc<Mutex<OwnedNodeIterator>>, String),
-    Random(Arc<Mutex<WeightedIterator<Random>>>, String),
+    RoundRobin(Arc<LoadBalancer<Weighted<RoundRobin>>>, String),
+    Weighted(Arc<LoadBalancer<Weighted<fnv::FnvHasher>>>, String),
+    Consistent(Arc<LoadBalancer<KetamaHashing>>, String),
+    Random(Arc<LoadBalancer<Weighted<Random>>>, String),
 }
 
 // to string
@@ -66,7 +63,11 @@ pub struct ProxyStore {
 }
 
 impl ProxyStore {
-    pub fn get_backend(&'static self, service_name: &str) -> Result<(Backend, Service), Errors> {
+    pub fn get_backend(
+        &'static self,
+        selection_key: String,
+        service_name: &str,
+    ) -> Result<(Backend, Service), Errors> {
         let service = match self.services.get(service_name) {
             Some(s) => s,
             None => {
@@ -75,13 +76,7 @@ impl ProxyStore {
         };
         let backend = match &service.backend_type {
             BackendType::RoundRobin(backend, _) => {
-                let mut backend = match backend.lock() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        return Err(Errors::PingoraError(e.into()));
-                    }
-                };
-                match backend.next() {
+                match backend.select(selection_key.as_bytes(), 256) {
                     Some(b) => b.clone(),
                     None => {
                         return Err(Errors::ConfigError("No backend found".to_string()));
@@ -89,13 +84,7 @@ impl ProxyStore {
                 }
             }
             BackendType::Weighted(backend, _) => {
-                let mut backend = match backend.lock() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        return Err(Errors::PingoraError(e.into()));
-                    }
-                };
-                match backend.next() {
+                match backend.select(selection_key.as_bytes(), 256) {
                     Some(b) => b.clone(),
                     None => {
                         return Err(Errors::ConfigError("No backend found".to_string()));
@@ -103,13 +92,7 @@ impl ProxyStore {
                 }
             }
             BackendType::Consistent(backend, _) => {
-                let mut backend = match backend.lock() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        return Err(Errors::PingoraError(e.into()));
-                    }
-                };
-                match backend.next() {
+                match backend.select(selection_key.as_bytes(), 256) {
                     Some(b) => b.clone(),
                     None => {
                         return Err(Errors::ConfigError("No backend found".to_string()));
@@ -117,13 +100,7 @@ impl ProxyStore {
                 }
             }
             BackendType::Random(backend, _) => {
-                let mut backend = match backend.lock() {
-                    Ok(val) => val,
-                    Err(e) => {
-                        return Err(Errors::PingoraError(e.into()));
-                    }
-                };
-                match backend.next() {
+                match backend.select(selection_key.as_bytes(), 256) {
                     Some(b) => b.clone(),
                     None => {
                         return Err(Errors::ConfigError("No backend found".to_string()));
@@ -135,7 +112,82 @@ impl ProxyStore {
     }
 }
 
-pub fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
+pub async fn load_backend_type(
+    svc: &crate::config::proxy::Service,
+    endpoints: &Vec<crate::config::proxy::Endpoint>,
+) -> Result<BackendType, Errors> {
+    let mut backends: BTreeSet<Backend> = BTreeSet::new();
+    for e in endpoints {
+        let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(Errors::ConfigError(format!(
+                    "Unable to parse address: {}",
+                    e
+                )));
+            }
+        };
+        backends.insert(Backend {
+            addr,
+            weight: e.weight.unwrap_or(1) as usize,
+        });
+    }
+    let disco = discovery::Static::new(backends);
+    // Initialize the appropriate iterator based on the algorithm
+    let backend_type = match svc.algorithm.as_str() {
+        "round_robin" => {
+            let upstreams =
+                LoadBalancer::<Weighted<RoundRobin>>::from_backends(Backends::new(disco));
+            match upstreams.update().await {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Errors::PingoraError(e.into()));
+                }
+            }
+            BackendType::RoundRobin(Arc::new(upstreams), format!("{:#?}", "backends"))
+        }
+        "weighted" => {
+            let backend =
+                LoadBalancer::<Weighted<fnv::FnvHasher>>::from_backends(Backends::new(disco));
+            match backend.update().await {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Errors::PingoraError(e.into()));
+                }
+            }
+            BackendType::Weighted(Arc::new(backend), format!("{:#?}", "backends"))
+        }
+        "consistent" => {
+            let backend = LoadBalancer::<KetamaHashing>::from_backends(Backends::new(disco));
+            match backend.update().await {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Errors::PingoraError(e.into()));
+                }
+            }
+            BackendType::Consistent(Arc::new(backend), format!("{:#?}", "backends"))
+        }
+        "random" => {
+            let upstreams = LoadBalancer::<Weighted<Random>>::from_backends(Backends::new(disco));
+            match upstreams.update().await {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Errors::PingoraError(e.into()));
+                }
+            }
+            BackendType::Random(Arc::new(upstreams), format!("{:#?}", "backends"))
+        }
+        _ => {
+            return Err(Errors::ConfigError(format!(
+                "Unknown algorithm: {}",
+                svc.algorithm
+            )));
+        }
+    };
+    Ok(backend_type)
+}
+
+pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
     let default_header_selector = "x-easy-proxy-svc";
     let mut store = ProxyStore {
         header_selector: String::new(),
@@ -147,58 +199,10 @@ pub fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
     for config in configs.iter() {
         if let Some(services) = &config.services {
             for svc in services {
-                let mut backends: BTreeSet<Backend> = BTreeSet::new();
-                for e in &svc.endpoints {
-                    let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
-                        Ok(val) => val,
-                        Err(e) => {
-                            return Err(Errors::ConfigError(format!(
-                                "Unable to parse address: {}",
-                                e
-                            )));
-                        }
-                    };
-                    backends.insert(Backend {
-                        addr,
-                        weight: e.weight.unwrap_or(1) as usize,
-                    });
-                }
-                // Initialize the appropriate iterator based on the algorithm
-                let backend_type = match svc.algorithm.as_str() {
-                    "round_robin" => {
-                        let backend = Weighted::<RoundRobin>::build(&backends);
-                        let backend =
-                            Arc::new(Mutex::new(Arc::new(backend).iter(svc.name.as_bytes())));
-                        BackendType::RoundRobin(backend, format!("{:#?}", backends))
-                    }
-                    "weighted" => {
-                        let backend = Arc::new(Weighted::<fnv::FnvHasher>::build(&backends));
-                        let backend = Arc::new(Mutex::new(backend.iter(svc.name.as_bytes())));
-                        BackendType::Weighted(backend, format!("{:#?}", backends))
-                    }
-                    "consistent" => {
-                        let backend = Arc::new(KetamaHashing::build(&backends));
-                        let backend = Arc::new(Mutex::new(backend.iter(svc.name.as_bytes())));
-                        BackendType::Consistent(backend, format!("{:#?}", backends))
-                    }
-                    "random" => {
-                        let backend = Arc::new(Weighted::<Random>::build(&backends));
-                        let backend = Arc::new(Mutex::new(backend.iter(svc.name.as_bytes())));
-                        BackendType::Random(backend, format!("{:#?}", backends))
-                    }
-                    _ => {
-                        return Err(Errors::ConfigError(format!(
-                            "Unknown algorithm: {}",
-                            svc.algorithm
-                        )));
-                    }
-                };
-
                 let service = Service {
                     name: svc.name.clone(),
-                    backend_type,
+                    backend_type: load_backend_type(svc, &svc.endpoints).await?,
                 };
-
                 store.services.insert(service.name.clone(), service);
             }
         }

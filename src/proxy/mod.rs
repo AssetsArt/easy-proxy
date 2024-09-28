@@ -149,8 +149,28 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
+        let ip = match session.client_addr() {
+            Some(ip) => match ip.as_inet() {
+                Some(ip) => ip.ip().to_string(),
+                None => {
+                    res.status(400).body_json(json!({
+                        "error": "PARSE_ERROR",
+                        "message": "Unable to parse client IP",
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            },
+            None => {
+                res.status(400).body_json(json!({
+                    "error": "CLIENT_ERROR",
+                    "message": "Unable to get client IP",
+                }));
+                return Ok(res.send(session).await);
+            }
+        };
+        let selection_key = format!("{}:{}", ip, path);
         let service_name = &matched.value.service;
-        let Ok((backend, _)) = store_conf.get_backend(service_name) else {
+        let Ok((backend, _)) = store_conf.get_backend(selection_key, service_name) else {
             res.status(404).body_json(json!({
                 "error": "CONFIG_ERROR",
                 "message": "No backend found for service",

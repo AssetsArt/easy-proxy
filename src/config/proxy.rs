@@ -68,7 +68,7 @@ pub struct ServiceReference {
     pub rewrite: Option<String>,
 }
 
-pub fn load() -> Result<(), Errors> {
+pub async fn load() -> Result<(), Errors> {
     let conf = runtime::config();
     let confid_dir = conf.config_dir.clone();
     let proxy_conf_path = PathBuf::from(confid_dir);
@@ -103,7 +103,7 @@ pub fn load() -> Result<(), Errors> {
         configs.push(config);
     }
     // println!("Configs: {:#?}", configs);
-    match store::load(configs) {
+    match store::load(configs).await {
         Ok(conf) => {
             store::set(conf);
         }

@@ -17,3 +17,4 @@ tracing-subscriber = "0.3"
 bytes = "1.7"
 matchit = "0.8"
 fnv = "1"
+tokio = { version = "1", features = ["rt"] }
