@@ -70,14 +70,13 @@ pub fn load() -> Result<(), Errors> {
     let conf = runtime::config();
     let confid_dir = conf.config_dir.clone();
     let proxy_conf_path = PathBuf::from(confid_dir);
-    // read all files in the directory
     let files = std::fs::read_dir(&proxy_conf_path).map_err(|e| {
         Errors::ConfigError(format!(
             "Unable to read config directory {:?}: {}",
             proxy_conf_path, e
         ))
     })?;
-    // iterate over the files
+    let mut configs: Vec<ProxyConfig> = Vec::new();
     for file in files {
         let file = file.map_err(|e| {
             Errors::ConfigError(format!(
@@ -86,8 +85,6 @@ pub fn load() -> Result<(), Errors> {
             ))
         })?;
         let file_path = file.path();
-        // println!("Full path: {:?}", file_path);
-        // check if the file is a yaml file
         let file = File::open(&file_path).map_err(|e| {
             Errors::ConfigError(format!(
                 "Unable to open config file {:?}: {}",
@@ -101,8 +98,8 @@ pub fn load() -> Result<(), Errors> {
                 file_path, e
             ))
         })?;
-        println!("Config: {:#?}", config);
+        configs.push(config);
     }
-
-    todo!("Implement the initialize function")
+    println!("Configs: {:#?}", configs);
+    Ok(())
 }
