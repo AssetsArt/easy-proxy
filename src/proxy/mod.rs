@@ -1,3 +1,4 @@
+mod backend;
 mod response;
 
 use crate::{config, errors::Errors};
@@ -169,8 +170,18 @@ impl ProxyHttp for EasyProxy {
             }
         };
         let selection_key = format!("{}:{}", ip, path);
-        let service_name = &matched.value.service;
-        let Ok((backend, _)) = store_conf.get_backend(selection_key, service_name) else {
+        let service_ref = &matched.value.service;
+        let service = match store_conf.services.get(&service_ref.name) {
+            Some(s) => s,
+            None => {
+                res.status(404).body_json(json!({
+                    "error": "CONFIG_ERROR",
+                    "message": "Service not found",
+                }));
+                return Ok(res.send(session).await);
+            }
+        };
+        let Ok(backend) = backend::selection(&selection_key, service) else {
             res.status(404).body_json(json!({
                 "error": "CONFIG_ERROR",
                 "message": "No backend found for service",

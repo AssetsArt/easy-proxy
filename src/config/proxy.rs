@@ -61,7 +61,7 @@ pub struct Path {
     pub service: ServiceReference,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServiceReference {
     pub name: String,
     #[serde(default)]

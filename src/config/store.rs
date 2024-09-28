@@ -1,4 +1,4 @@
-use super::proxy::ProxyConfig;
+use super::proxy::{ProxyConfig, ServiceReference};
 use crate::errors::Errors;
 use once_cell::sync::OnceCell;
 use pingora::{
@@ -52,7 +52,7 @@ pub struct Service {
 
 #[derive(Debug, Clone)]
 pub struct Route {
-    pub service: String,
+    pub service: ServiceReference,
 }
 
 #[derive(Debug, Clone)]
@@ -60,56 +60,6 @@ pub struct ProxyStore {
     pub header_selector: String,
     pub services: HashMap<String, Service>,
     pub host_routes: HashMap<String, matchit::Router<Route>>,
-}
-
-impl ProxyStore {
-    pub fn get_backend(
-        &'static self,
-        selection_key: String,
-        service_name: &str,
-    ) -> Result<(Backend, Service), Errors> {
-        let service = match self.services.get(service_name) {
-            Some(s) => s,
-            None => {
-                return Err(Errors::ServiceNotFound(service_name.to_string()));
-            }
-        };
-        let backend = match &service.backend_type {
-            BackendType::RoundRobin(backend, _) => {
-                match backend.select(selection_key.as_bytes(), 256) {
-                    Some(b) => b.clone(),
-                    None => {
-                        return Err(Errors::ConfigError("No backend found".to_string()));
-                    }
-                }
-            }
-            BackendType::Weighted(backend, _) => {
-                match backend.select(selection_key.as_bytes(), 256) {
-                    Some(b) => b.clone(),
-                    None => {
-                        return Err(Errors::ConfigError("No backend found".to_string()));
-                    }
-                }
-            }
-            BackendType::Consistent(backend, _) => {
-                match backend.select(selection_key.as_bytes(), 256) {
-                    Some(b) => b.clone(),
-                    None => {
-                        return Err(Errors::ConfigError("No backend found".to_string()));
-                    }
-                }
-            }
-            BackendType::Random(backend, _) => {
-                match backend.select(selection_key.as_bytes(), 256) {
-                    Some(b) => b.clone(),
-                    None => {
-                        return Err(Errors::ConfigError("No backend found".to_string()));
-                    }
-                }
-            }
-        };
-        Ok((backend, service.clone()))
-    }
 }
 
 pub async fn load_backend_type(
@@ -222,7 +172,7 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                     for path in route.paths.iter().flatten() {
                         let path_type = path.path_type.clone();
                         let r = Route {
-                            service: path.service.name.clone(),
+                            service: path.service.clone(),
                         };
                         match routes.insert(path.path.clone(), r.clone()) {
                             Ok(_) => {}
