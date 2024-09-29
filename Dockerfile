@@ -11,7 +11,8 @@ RUN set -eux; \
         cmake \
         libssl-dev \
         make \
-        pkg-config
+        pkg-config \
+        openssl \
 
 WORKDIR /app
 # copy app src
