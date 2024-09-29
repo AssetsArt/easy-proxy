@@ -5,14 +5,21 @@ use std::collections::HashMap;
 
 use crate::{config, errors::Errors};
 use async_trait::async_trait;
+use http::Version;
+use openssl::ssl::{NameType, SslRef};
 use pingora::{
     lb::Backend,
+    listeners::TlsSettings,
     prelude::{HttpPeer, Opt},
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
+    tls::ext,
     ErrorType,
 };
 use serde_json::json;
+
+// static
+static WELL_KNOWN_PAHT_PREFIX: &str = "/.well-known/acme-challenge/";
 
 #[derive(Debug, Clone)]
 pub struct EasyProxy {}
@@ -71,15 +78,82 @@ impl EasyProxy {
         pingora_server.bootstrap();
         let mut pingora_svc =
             proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
-        pingora_svc.add_tcp(&app_conf.proxy.addr);
+        pingora_svc.add_tcp(&app_conf.proxy.http);
         pingora_server.add_service(pingora_svc);
-        tracing::info!("Proxy server started on: {}", &app_conf.proxy.addr);
+        tracing::info!("Proxy server started on http://{}", app_conf.proxy.http);
+        if let Some(https) = &app_conf.proxy.https {
+            let mut pingora_svc =
+                proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
+            let mut tls = match TlsSettings::with_callbacks(Box::new(DynamicCertificate::new())) {
+                Ok(tls) => tls,
+                Err(e) => {
+                    return Err(Errors::PingoraError(format!("{}", e)));
+                }
+            };
+            tls.enable_h2();
+            pingora_svc.add_tls_with_settings(https, None, tls);
+            pingora_server.add_service(pingora_svc);
+            tracing::info!("Proxy server started on https://{}", https);
+        }
 
         // let mut prometheus_service_http = services::listening::Service::prometheus_http_service();
         // prometheus_service_http.add_tcp("127.0.0.1:6192");
         // pingora_server.add_service(prometheus_service_http);
 
         Ok(pingora_server)
+    }
+}
+
+pub struct DynamicCertificate {}
+
+impl DynamicCertificate {
+    pub fn new() -> Self {
+        DynamicCertificate {}
+    }
+}
+
+#[async_trait]
+impl pingora::listeners::TlsAccept for DynamicCertificate {
+    async fn certificate_callback(&self, ssl: &mut SslRef) {
+        // println!("certificate_callback {:?}", ssl);
+        let server_name = ssl.servername(NameType::HOST_NAME);
+        let server_name = match server_name {
+            Some(s) => s,
+            None => {
+                tracing::error!("Unable to get server name {:?}", ssl);
+                return;
+            }
+        };
+        let tls = match config::store::get_tls() {
+            Some(tls) => tls,
+            None => {
+                tracing::error!("TLS configuration not found");
+                return;
+            }
+        };
+        let cert = match tls.get(server_name) {
+            Some(c) => c,
+            None => {
+                tracing::error!("Certificate not found for {}", server_name);
+                return;
+            }
+        };
+        // println!("Certificate found for {:?}", cert.cert);
+        // println!("Certificate found for {:?}", cert.key);
+        // set tls certificate
+        if let Err(e) = ext::ssl_use_certificate(ssl, &cert.cert) {
+            tracing::error!("ssl use certificate fail: {}", e);
+        }
+        // set private key
+        if let Err(e) = ext::ssl_use_private_key(ssl, &cert.key) {
+            tracing::error!("ssl use private key fail: {}", e);
+        }
+        // set chain certificate
+        if let Some(chain) = &cert.chain {
+            if let Err(e) = ext::ssl_add_chain_cert(ssl, chain) {
+                tracing::error!("ssl add chain cert fail: {}", e);
+            }
+        }
     }
 }
 
@@ -104,15 +178,16 @@ impl ProxyHttp for EasyProxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
+        // println!("request_filter {:#?}", session.req_header());
         // create a new response
         let mut res = response::Response::new();
         // get the path
-        let path = session.req_header().uri.path();
+        let mut path = session.req_header().uri.path().to_string();
 
         // get the host
-        let host = match session.get_header("host") {
+        let mut host = match session.get_header("host") {
             Some(h) => match h.to_str() {
-                Ok(h) => h,
+                Ok(h) => h.to_string(),
                 Err(e) => {
                     res.status(400).body_json(json!({
                         "error": "PARSE_ERROR",
@@ -121,8 +196,38 @@ impl ProxyHttp for EasyProxy {
                     return Ok(res.send(session).await);
                 }
             },
-            None => "",
+            None => "".to_string(),
         };
+        if session.req_header().version == Version::HTTP_2 {
+            let sessionv2 = match session.as_http2() {
+                Some(s) => s,
+                None => {
+                    return Err(pingora::Error::because(
+                        ErrorType::InternalError,
+                        "[request_filter]",
+                        Errors::ConfigError("Unable to convert to http2".to_string()),
+                    ));
+                }
+            };
+            path = sessionv2.req_header().uri.path().to_string();
+            host = match sessionv2.req_header().uri.host() {
+                Some(h) => h.to_string(),
+                None => "".to_string(),
+            };
+            let _ = session.req_header_mut().append_header("host", host.as_str()).is_ok();
+        } else {
+            host = match host.split(':').next() {
+                Some(h) => h.to_string(),
+                None => host,
+            };
+        }
+        // println!("path: {}", path);
+        // println!("host: {}", host);
+
+        // check if the path is a well-known path
+        if !host.is_empty() && path.starts_with(WELL_KNOWN_PAHT_PREFIX) {
+            return Ok(true);
+        }
 
         // get the store configuration
         let store_conf = match config::store::get() {
@@ -160,6 +265,7 @@ impl ProxyHttp for EasyProxy {
             match store_conf.header_routes.get(header_selector) {
                 Some(r) => r,
                 None => {
+                    // println!("No route found for header");
                     res.status(404).body_json(json!({
                         "error": "CONFIG_ERROR",
                         "message": "No route found for header",
@@ -168,9 +274,10 @@ impl ProxyHttp for EasyProxy {
                 }
             }
         } else {
-            match store_conf.host_routes.get(host) {
+            match store_conf.host_routes.get(&host) {
                 Some(r) => r,
                 None => {
+                    // println!("No route found for host");
                     res.status(404).body_json(json!({
                         "error": "CONFIG_ERROR",
                         "message": "No route found for host",
@@ -181,7 +288,7 @@ impl ProxyHttp for EasyProxy {
         };
 
         // match the route
-        let matched = match route.at(path) {
+        let matched = match route.at(&path) {
             Ok(m) => m,
             Err(e) => {
                 res.status(404).body_json(json!({

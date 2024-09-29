@@ -45,8 +45,8 @@ impl Response {
 
     pub async fn send(&self, session: &mut Session) -> bool {
         let tasks = vec![
-            HttpTask::Header(Box::new(self.headers.clone()), true),
-            HttpTask::Body(Some(self.body.clone()), true),
+            HttpTask::Header(Box::new(self.headers.clone()), false),
+            HttpTask::Body(Some(self.body.clone()), false),
             HttpTask::Done,
         ];
         match session.response_duplex_vec(tasks).await {

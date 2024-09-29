@@ -10,4 +10,14 @@ pub enum Errors {
     ServiceNotFound(String),
     #[error("Proxy error: {0}")]
     ProxyError(String),
+    #[error("AcmeKeyPairKey error: {0}")]
+    AcmeKeyPairKeyRejected(String),
+    #[error("AcmeKeyPairKey error: {0}")]
+    AcmeKeyPairKeyUnspecified(String),
+    #[error("AcmeHttpClient error: {0}")]
+    AcmeHttpClientError(String),
+    #[error("AcmeJWS error: {0}")]
+    AcmeJWSError(String),
+    #[error("AcmeClient error: {0}")]
+    AcmeClientError(String),
 }

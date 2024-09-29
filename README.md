@@ -74,6 +74,15 @@ services:
 
 # A list of routes to be proxied 
 header_selector: x-easy-proxy-svc
+tls:
+  - name: my-tls
+    type: custom # acme, custom
+    # provider: letsencrypt # letsencrypt // required if type is acme
+    # acme: # required if type is acme
+    #   email: admin@domain.com
+    key: /etc/easy-proxy/ssl/localhost.key
+    cert: /etc/easy-proxy/ssl/localhost.crt
+    # chain: .config/ssl/localhost.chain.crt # optional
 routes:
   - route:
       type: header
@@ -90,6 +99,9 @@ routes:
       type: host
       value: localhost:8088
     name: my-route-1
+    tls: # optional
+      name: my-tls
+      redirect: true # redirect to https default: false
     remove_headers:
       - cookie
     add_headers:

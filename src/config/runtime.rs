@@ -12,7 +12,8 @@ pub struct RuntimeConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Proxy {
-    pub addr: String,
+    pub http: String,
+    pub https: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
