@@ -3,6 +3,16 @@
 **Easy Proxy**, a simple proxy server designed to provide essential features for network traffic management and proxying.
 based on [pingora](https://github.com/cloudflare/pingora)
 
+## Installation
+```bash
+curl -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/install.sh | bash
+```
+
+## Uninstall
+```bash
+curl -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/uninstall.sh | bash
+```
+
 ## Features
 
 Easy Proxy supports the following features:

@@ -54,12 +54,19 @@ jobs:
       #     mkdir -p build/linux-musl/
       #     cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux-musl/
 
+
+      - name: Generate Checksums
+        run: |
+          cd build
+          shasum -a 256 * > checksums.txt
+      
       - name: Push binaries to release
         uses: softprops/action-gh-release@v1
         with:
           repository: ${{ github.repository }}
           files: |
             build/linux/aarch64-easy-proxy-linux-gnu
+            build/checksums.txt
           tag_name: v${{ steps.extract_version.outputs.version }}
           name: v${{ steps.extract_version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
