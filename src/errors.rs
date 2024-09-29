@@ -18,4 +18,6 @@ pub enum Errors {
     AcmeHttpClientError(String),
     #[error("AcmeJWS error: {0}")]
     AcmeJWSError(String),
+    #[error("AcmeClient error: {0}")]
+    AcmeClientError(String),
 }

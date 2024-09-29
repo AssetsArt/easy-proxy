@@ -1,8 +1,8 @@
+use super::crypto::AcmeKeyPair;
+use crate::errors::Errors;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use serde_json::{json, Value};
-use crate::errors::Errors;
-use super::crypto::AcmeKeyPair;
 
 pub fn sign_request(
     key_pair: &AcmeKeyPair,
