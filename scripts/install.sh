@@ -92,8 +92,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
     echo "Writing default configuration to $CONFIG_FILE..."
     sudo tee "$CONFIG_FILE" > /dev/null <<EOL
 proxy:
-  http: "0.0.0.0:8088"
-  https: "0.0.0.0:8443"
+  http: "0.0.0.0:80"
+  https: "0.0.0.0:443"
 config_dir: "/etc/easy-proxy/proxy"
 pingora:
   # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
