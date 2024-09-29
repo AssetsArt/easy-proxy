@@ -3,8 +3,8 @@ use pingora::proxy::Session;
 
 pub fn headers(
     session: &mut Session,
-    add_headers: Option<Vec<Header>>,
-    remove_headers: Option<Vec<String>>,
+    add_headers: &Option<Vec<Header>>,
+    remove_headers: &Option<Vec<String>>,
 ) {
     for header in remove_headers.iter().flatten() {
         let _ = session.req_header_mut().remove_header(header.as_str());

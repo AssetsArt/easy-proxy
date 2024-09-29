@@ -248,8 +248,8 @@ impl ProxyHttp for EasyProxy {
         }
         request_modifiers::headers(
             session,
-            route.add_headers.clone(),
-            route.remove_headers.clone(),
+            &route.add_headers,
+            &route.remove_headers,
         );
 
         // select the backend for http service
