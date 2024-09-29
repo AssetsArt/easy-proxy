@@ -16,7 +16,9 @@ fn main() {
         }
     }
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| tracing::error!("Error: {:?}", e))
+        .unwrap();
     rt.block_on(async {
         match config::proxy::load().await {
             Ok(_) => {
