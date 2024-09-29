@@ -1,6 +1,7 @@
 mod backend;
 mod request_modifiers;
 mod response;
+use std::collections::HashMap;
 
 use crate::{config, errors::Errors};
 use async_trait::async_trait;
@@ -85,6 +86,7 @@ pub struct Context {
     pub backend: Backend,
     pub sni: String,
     pub tls: bool,
+    pub variables: HashMap<String, String>,
 }
 
 #[async_trait]
@@ -96,6 +98,7 @@ impl ProxyHttp for EasyProxy {
             backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
             sni: "one.one.one.one".to_string(),
             tls: false,
+            variables: HashMap::new(),
         }
     }
 
@@ -215,6 +218,8 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
+
+        ctx.variables.insert("CLIENT_IP".to_string(), ip.clone());
         // x-real-ip
         let ip = match session.get_header("x-real-ip") {
             Some(h) => match h.to_str() {
@@ -246,11 +251,7 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         }
-        request_modifiers::headers(
-            session,
-            &route.add_headers,
-            &route.remove_headers,
-        );
+        request_modifiers::headers(session, ctx, &route.add_headers, &route.remove_headers);
 
         // select the backend for http service
         let service = match store_conf.services.get(&service_ref.name) {

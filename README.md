@@ -73,7 +73,19 @@ services:
         weight: 1 # Optional
 
 # A list of routes to be proxied 
+header_selector: x-easy-proxy-svc
 routes:
+  - route:
+      type: header
+      value: service-1
+    name: my-route-header-1
+    paths:
+      - pathType: Exact
+        path: /
+        service:
+          rewrite: /rewrite
+          name: my-service
+          
   - route:
       type: host
       value: localhost:8088
@@ -83,6 +95,8 @@ routes:
     add_headers:
       - name: x-custom-header
         value: "123"
+      - name: x-real-ip
+        value: "$CLIENT_IP"
     paths:
       - pathType: Exact
         path: /
