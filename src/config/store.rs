@@ -1,7 +1,6 @@
 use super::proxy::{Header, Path, ProxyConfig, ServiceReference, TlsRoute};
 use crate::errors::Errors;
 use http::Extensions;
-use once_cell::sync::OnceCell;
 use openssl::x509::X509;
 use pingora::{
     lb::{
@@ -20,8 +19,8 @@ use pingora::{
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-static GLOBAL_PROXY_CONFIG: OnceCell<ProxyStore> = OnceCell::new();
-static GLOBAL_TLS_CONFIG: OnceCell<HashMap<String, TlsGlobalConfig>> = OnceCell::new();
+static mut GLOBAL_PROXY_CONFIG: *mut ProxyStore = std::ptr::null_mut();
+static mut GLOBAL_TLS_CONFIG: *mut HashMap<String, TlsGlobalConfig> = std::ptr::null_mut();
 pub struct TlsGlobalConfig {
     pub cert: X509,
     pub key: PKey<openssl::pkey::Private>,
@@ -353,18 +352,30 @@ pub async fn load(
 }
 
 pub fn set(conf: (ProxyStore, HashMap<String, TlsGlobalConfig>)) {
-    if GLOBAL_PROXY_CONFIG.set(conf.0).is_err() {
-        tracing::warn!("Global proxy store has already been set");
+    unsafe {
+        GLOBAL_PROXY_CONFIG = Box::into_raw(Box::new(conf.0));
     }
-    if GLOBAL_TLS_CONFIG.set(conf.1).is_err() {
-        tracing::warn!("Global tls config has already been set");
+    unsafe {
+        GLOBAL_TLS_CONFIG = Box::into_raw(Box::new(conf.1));
     }
 }
 
 pub fn get() -> Option<&'static ProxyStore> {
-    GLOBAL_PROXY_CONFIG.get()
+    unsafe {
+        if GLOBAL_PROXY_CONFIG.is_null() {
+            None
+        } else {
+            Some(&*GLOBAL_PROXY_CONFIG)
+        }
+    }
 }
 
 pub fn get_tls() -> Option<&'static HashMap<String, TlsGlobalConfig>> {
-    GLOBAL_TLS_CONFIG.get()
+    unsafe {
+        if GLOBAL_TLS_CONFIG.is_null() {
+            None
+        } else {
+            Some(&*GLOBAL_TLS_CONFIG)
+        }
+    }
 }
