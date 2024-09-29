@@ -136,8 +136,8 @@ impl pingora::listeners::TlsAccept for DynamicCertificate {
                 return;
             }
         };
-        println!("Certificate found for {:?}", cert.cert);
-        println!("Certificate found for {:?}", cert.key);
+        // println!("Certificate found for {:?}", cert.cert);
+        // println!("Certificate found for {:?}", cert.key);
         // set tls certificate
         if let Err(e) = ext::ssl_use_certificate(ssl, &cert.cert) {
             tracing::error!("ssl use certificate fail: {}", e);
