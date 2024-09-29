@@ -233,7 +233,11 @@ impl ProxyHttp for EasyProxy {
 
         // check if the path is a well-known path
         if !host.is_empty() && path.starts_with(WELL_KNOWN_PAHT_PREFIX) {
-            return Ok(true);
+            res.status(503).body_json(json!({
+                "error": "ACME_ERROR",
+                "message": "ACME challenge not supported",
+            }));
+            return Ok(res.send(session).await);
         }
 
         // get the store configuration
