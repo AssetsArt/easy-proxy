@@ -50,33 +50,13 @@ jobs:
           mkdir -p build/linux-musl/
           cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux-musl/
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # push binaries to release
+      - name: Push binaries to release
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.sha }}
-          release_name: "Release ${{ github.sha }}"
-          draft: false
-          prerelease: false
-
-      - name: Upload Linux binary to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/linux/easy-proxy
-          asset_name: easy-proxy-linux
-          asset_content_type: application/octet-stream
-
-      - name: Upload macOS binary to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/macos/easy-proxy
-          asset_name: easy-proxy-macos
-          asset_content_type: application/octet-stream
+          files: |
+            build/linux-gnu/easy-proxy
+            build/linux-musl/easy-proxy
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          title: ${{ github.ref }}
