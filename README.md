@@ -42,7 +42,7 @@ Easy Proxy supports the following features:
 proxy:
   http: "0.0.0.0:8088"
   https: "0.0.0.0:8443"
-config_dir: ".config/proxy"
+config_dir: "/etc/easy-proxy/proxy"
 pingora:
   # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
   daemon: true
@@ -66,6 +66,7 @@ $ easy-proxy -r # Reload the configuration file
 
 ### Service and Route Configuration
 ```yaml
+# my-config.yaml
 # Select the service to be proxied
 header_selector: x-easy-proxy-svc
 
