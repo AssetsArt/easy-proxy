@@ -47,7 +47,7 @@ impl std::fmt::Debug for BackendType {
 }
 
 #[derive(Debug, Clone)]
-pub struct Service {
+pub struct HttpService {
     pub name: String,
     pub backend_type: BackendType,
 }
@@ -64,7 +64,7 @@ pub struct Route {
 #[derive(Debug, Clone)]
 pub struct ProxyStore {
     pub header_selector: String,
-    pub services: HashMap<String, Service>,
+    pub http_services: HashMap<String, HttpService>,
     pub host_routes: HashMap<String, matchit::Router<Route>>,
     pub header_routes: HashMap<String, matchit::Router<Route>>,
 }
@@ -158,7 +158,7 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
     let default_header_selector = "x-easy-proxy-svc";
     let mut store = ProxyStore {
         header_selector: String::new(),
-        services: HashMap::new(),
+        http_services: HashMap::new(),
         host_routes: HashMap::new(),
         header_routes: HashMap::new(),
     };
@@ -167,11 +167,11 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
     for config in configs.iter() {
         if let Some(services) = &config.services {
             for svc in services {
-                let service = Service {
+                let service = HttpService {
                     name: svc.name.clone(),
                     backend_type: load_backend_type(svc, &svc.endpoints).await?,
                 };
-                store.services.insert(service.name.clone(), service);
+                store.http_services.insert(service.name.clone(), service);
             }
         }
     }

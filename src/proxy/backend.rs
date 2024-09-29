@@ -1,10 +1,10 @@
 use crate::{
-    config::store::{BackendType, Service},
+    config::store::{BackendType, HttpService},
     errors::Errors,
 };
 use pingora::lb::Backend;
 
-pub fn selection(selection_key: &String, service: &Service) -> Result<Backend, Errors> {
+pub fn selection(selection_key: &String, service: &HttpService) -> Result<Backend, Errors> {
     let backend = match &service.backend_type {
         BackendType::RoundRobin(backend, _) => {
             match backend.select(selection_key.as_bytes(), 256) {

@@ -247,7 +247,7 @@ impl ProxyHttp for EasyProxy {
         request_modifiers::headers(session, ctx, &route.add_headers, &route.remove_headers);
 
         // select the backend for http service
-        let service = match store_conf.services.get(&service_ref.name) {
+        let service = match store_conf.http_services.get(&service_ref.name) {
             Some(s) => s,
             None => {
                 res.status(404).body_json(json!({
