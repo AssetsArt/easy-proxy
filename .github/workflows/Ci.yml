@@ -61,3 +61,4 @@ jobs:
             build/linux/aarch64-easy-proxy-linux-gnu
           tag_name: v${{ steps.extract_version.outputs.version }}
           name: v${{ steps.extract_version.outputs.version }}
+          token: ${{ secrets.ORGK }}
