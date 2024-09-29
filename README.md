@@ -24,7 +24,7 @@ Easy Proxy supports the following features:
 - [ ] Logging and Monitoring
 - Protocol Support
   - [x] HTTP
-  - [ ] HTTPS
+  - [x] HTTPS
 
 ## Example configuration
 

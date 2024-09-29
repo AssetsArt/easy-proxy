@@ -214,7 +214,10 @@ impl ProxyHttp for EasyProxy {
                 Some(h) => h.to_string(),
                 None => "".to_string(),
             };
-            let _ = session.req_header_mut().append_header("host", host.as_str()).is_ok();
+            let _ = session
+                .req_header_mut()
+                .append_header("host", host.as_str())
+                .is_ok();
         } else {
             host = match host.split(':').next() {
                 Some(h) => h.to_string(),
@@ -340,6 +343,12 @@ impl ProxyHttp for EasyProxy {
 
         // modify the request
         let route = matched.value;
+        if let Some(tls) = &route.tls {
+            if tls.redirect.unwrap_or(false) && session.req_header().version != Version::HTTP_2 {
+                res.redirect_https(host, path);
+                return Ok(res.send(session).await);
+            }
+        }
         match request_modifiers::rewrite(session, &route.path.path, &service_ref.rewrite).await {
             Ok(_) => {}
             Err(e) => {

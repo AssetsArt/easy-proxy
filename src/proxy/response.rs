@@ -13,6 +13,13 @@ impl Response {
         }
     }
 
+    // redirect to https
+    pub fn redirect_https(&mut self, host: String, path: String) -> &mut Self {
+        self.status(301);
+        self.header("Location".to_string(), format!("https://{}{}", host, path));
+        self
+    }
+
     pub fn status(&mut self, status: u16) -> &mut Self {
         self.headers = ResponseHeader::build(status, None).expect("Unable to build header");
         self

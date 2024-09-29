@@ -1,4 +1,4 @@
-use super::proxy::{Header, Path, ProxyConfig, ServiceReference};
+use super::proxy::{Header, Path, ProxyConfig, ServiceReference, TlsRoute};
 use crate::errors::Errors;
 use http::Extensions;
 use once_cell::sync::OnceCell;
@@ -66,7 +66,7 @@ pub struct Route {
     pub service: ServiceReference,
     pub remove_headers: Option<Vec<String>>,
     pub add_headers: Option<Vec<Header>>,
-    // pub route_condition: RouteCondition,
+    pub tls: Option<TlsRoute>,
 }
 
 #[derive(Debug, Clone)]
@@ -307,7 +307,7 @@ pub async fn load(
                         service: path.service.clone(),
                         remove_headers: route.remove_headers.clone(),
                         add_headers: route.add_headers.clone(),
-                        // route_condition: route.route.clone(),
+                        tls: route.tls.clone(),
                     };
                     match routes.insert(path.path.clone(), r.clone()) {
                         Ok(_) => {}
