@@ -2,6 +2,7 @@ use super::proxy::{Header, Path, ProxyConfig, ServiceReference};
 use crate::errors::Errors;
 use http::Extensions;
 use once_cell::sync::OnceCell;
+use openssl::x509::X509;
 use pingora::{
     lb::{
         discovery,
@@ -14,11 +15,18 @@ use pingora::{
     },
     prelude::HttpPeer,
     protocols::l4::socket::SocketAddr,
+    tls::pkey::PKey,
 };
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 static GLOBAL_PROXY_CONFIG: OnceCell<ProxyStore> = OnceCell::new();
+static GLOBAL_TLS_CONFIG: OnceCell<HashMap<String, TlsGlobalConfig>> = OnceCell::new();
+pub struct TlsGlobalConfig {
+    pub cert: X509,
+    pub key: PKey<openssl::pkey::Private>,
+    pub chain: Option<X509>,
+}
 
 #[derive(Clone)]
 pub enum BackendType {
@@ -154,7 +162,9 @@ async fn load_backend_type(
     Ok(backend_type)
 }
 
-pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
+pub async fn load(
+    configs: Vec<ProxyConfig>,
+) -> Result<(ProxyStore, HashMap<String, TlsGlobalConfig>), Errors> {
     let default_header_selector = "x-easy-proxy-svc";
     let mut store = ProxyStore {
         header_selector: String::new(),
@@ -162,6 +172,7 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
         host_routes: HashMap::new(),
         header_routes: HashMap::new(),
     };
+    let mut tls_configs: HashMap<String, TlsGlobalConfig> = HashMap::new();
 
     // Process services
     for config in configs.iter() {
@@ -185,6 +196,109 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
         }
         if let Some(routes) = &config.routes {
             for route in routes {
+                // tls
+                if route.route.condition_type == *"host" {
+                    if let Some(r_tls) = &route.tls {
+                        if let Some(tls) =
+                            config.tls.iter().flatten().find(|t| t.name == r_tls.name)
+                        {
+                            let hosts: Vec<&str> = route.route.value.split('|').collect();
+                            for host in hosts {
+                                let host = match host.split(':').next() {
+                                    Some(val) => val,
+                                    None => {
+                                        return Err(Errors::ConfigError(
+                                            "Unable to parse host".to_string(),
+                                        ));
+                                    }
+                                };
+                                // load tls from file
+                                if tls.tls_type == *"custom" {
+                                    let Some(cert) = tls.cert.clone() else {
+                                        return Err(Errors::ConfigError(
+                                            "Custom tls requires a cert file".to_string(),
+                                        ));
+                                    };
+                                    let Some(key) = tls.key.clone() else {
+                                        return Err(Errors::ConfigError(
+                                            "Custom tls requires a key file".to_string(),
+                                        ));
+                                    };
+                                    let cert = match std::fs::read(&cert) {
+                                        Ok(val) => val,
+                                        Err(e) => {
+                                            return Err(Errors::ConfigError(format!(
+                                                "Unable to read cert file: {}",
+                                                e
+                                            )));
+                                        }
+                                    };
+                                    let key = match std::fs::read(&key) {
+                                        Ok(val) => val,
+                                        Err(e) => {
+                                            return Err(Errors::ConfigError(format!(
+                                                "Unable to read key file: {}",
+                                                e
+                                            )));
+                                        }
+                                    };
+                                    let chain = match tls.chain.clone() {
+                                        Some(chain) => {
+                                            let chain = match std::fs::read(&chain) {
+                                                Ok(val) => val,
+                                                Err(e) => {
+                                                    return Err(Errors::ConfigError(format!(
+                                                        "Unable to read chain file: {}",
+                                                        e
+                                                    )));
+                                                }
+                                            };
+                                            Some(chain)
+                                        }
+                                        None => None,
+                                    };
+                                    let x059cert = match X509::from_pem(&cert) {
+                                        Ok(val) => val,
+                                        Err(e) => {
+                                            return Err(Errors::ConfigError(format!(
+                                                "Unable to parse cert file: {}",
+                                                e
+                                            )));
+                                        }
+                                    };
+                                    let tls_config = TlsGlobalConfig {
+                                        cert: x059cert,
+                                        key: match PKey::private_key_from_pem(&key) {
+                                            Ok(val) => val,
+                                            Err(e) => {
+                                                return Err(Errors::ConfigError(format!(
+                                                    "Unable to parse key file: {}",
+                                                    e
+                                                )));
+                                            }
+                                        },
+                                        chain: match chain {
+                                            Some(chain) => {
+                                                let x059chain = match X509::from_pem(&chain) {
+                                                    Ok(val) => val,
+                                                    Err(e) => {
+                                                        return Err(Errors::ConfigError(format!(
+                                                            "Unable to parse chain file: {}",
+                                                            e
+                                                        )));
+                                                    }
+                                                };
+                                                Some(x059chain)
+                                            }
+                                            None => None,
+                                        },
+                                    };
+                                    tls_configs.insert(host.to_string(), tls_config);
+                                }
+                            }
+                        }
+                    }
+                }
                 let mut routes = matchit::Router::<Route>::new();
                 for path in route.paths.iter().flatten() {
                     let path_type = path.path_type.clone();
@@ -217,7 +331,10 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
                     }
                 }
                 if route.route.condition_type == *"host" {
-                    store.host_routes.insert(route.route.value.clone(), routes);
+                    let hosts: Vec<&str> = route.route.value.split('|').collect();
+                    for host in hosts {
+                        store.host_routes.insert(host.to_string(), routes.clone());
+                    }
                 } else {
                     store
                         .header_routes
@@ -232,15 +349,22 @@ pub async fn load(configs: Vec<ProxyConfig>) -> Result<ProxyStore, Errors> {
         store.header_selector = default_header_selector.to_string();
     }
 
-    Ok(store)
+    Ok((store, tls_configs))
 }
 
-pub fn set(store: ProxyStore) {
-    if GLOBAL_PROXY_CONFIG.set(store).is_err() {
+pub fn set(conf: (ProxyStore, HashMap<String, TlsGlobalConfig>)) {
+    if GLOBAL_PROXY_CONFIG.set(conf.0).is_err() {
         tracing::warn!("Global proxy store has already been set");
+    }
+    if GLOBAL_TLS_CONFIG.set(conf.1).is_err() {
+        tracing::warn!("Global tls config has already been set");
     }
 }
 
 pub fn get() -> Option<&'static ProxyStore> {
     GLOBAL_PROXY_CONFIG.get()
+}
+
+pub fn get_tls() -> Option<&'static HashMap<String, TlsGlobalConfig>> {
+    GLOBAL_TLS_CONFIG.get()
 }

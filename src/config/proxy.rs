@@ -9,6 +9,25 @@ pub struct ProxyConfig {
     pub header_selector: Option<String>,
     pub routes: Option<Vec<Route>>,
     pub services: Option<Vec<Service>>,
+    pub tls: Option<Vec<Tls>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Tls {
+    pub name: String,
+    pub redirect: Option<bool>,
+    #[serde(rename = "type")]
+    pub tls_type: String,
+    pub provider: Option<String>,
+    pub acme: Option<Acme>,
+    pub key: Option<String>,
+    pub cert: Option<String>,
+    pub chain: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Acme {
+    pub email: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -31,6 +50,7 @@ pub struct Endpoint {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Route {
     pub route: RouteCondition,
+    pub tls: Option<TlsRoute>,
     pub name: String,
     #[serde(default)]
     pub remove_headers: Option<Vec<String>>,
@@ -38,6 +58,13 @@ pub struct Route {
     pub add_headers: Option<Vec<Header>>,
     #[serde(default)]
     pub paths: Option<Vec<Path>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TlsRoute {
+    pub name: String,
+    #[serde(default)]
+    pub redirect: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

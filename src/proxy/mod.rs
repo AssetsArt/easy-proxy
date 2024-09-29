@@ -5,11 +5,14 @@ use std::collections::HashMap;
 
 use crate::{config, errors::Errors};
 use async_trait::async_trait;
+use openssl::ssl::{NameType, SslRef};
 use pingora::{
     lb::Backend,
+    listeners::TlsSettings,
     prelude::{HttpPeer, Opt},
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
+    tls::ext,
     ErrorType,
 };
 use serde_json::json;
@@ -74,15 +77,81 @@ impl EasyProxy {
         pingora_server.bootstrap();
         let mut pingora_svc =
             proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
-        pingora_svc.add_tcp(&app_conf.proxy.addr);
+        pingora_svc.add_tcp(&app_conf.proxy.http);
         pingora_server.add_service(pingora_svc);
-        tracing::info!("Proxy server started on: {}", &app_conf.proxy.addr);
+        tracing::info!("Proxy server started on http://{}", app_conf.proxy.http);
+        if let Some(https) = &app_conf.proxy.https {
+            let mut pingora_svc =
+                proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
+            let tls = match TlsSettings::with_callbacks(Box::new(DynamicCertificate::new())) {
+                Ok(tls) => tls,
+                Err(e) => {
+                    return Err(Errors::PingoraError(format!("{}", e)));
+                }
+            };
+            pingora_svc.add_tls_with_settings(https, None, tls);
+            pingora_server.add_service(pingora_svc);
+            tracing::info!("Proxy server started on https://{}", https);
+        }
 
         // let mut prometheus_service_http = services::listening::Service::prometheus_http_service();
         // prometheus_service_http.add_tcp("127.0.0.1:6192");
         // pingora_server.add_service(prometheus_service_http);
 
         Ok(pingora_server)
+    }
+}
+
+pub struct DynamicCertificate {}
+
+impl DynamicCertificate {
+    pub fn new() -> Self {
+        DynamicCertificate {}
+    }
+}
+
+#[async_trait]
+impl pingora::listeners::TlsAccept for DynamicCertificate {
+    async fn certificate_callback(&self, ssl: &mut SslRef) {
+        // println!("certificate_callback {:?}", ssl);
+        let server_name = ssl.servername(NameType::HOST_NAME);
+        let server_name = match server_name {
+            Some(s) => s,
+            None => {
+                tracing::error!("Unable to get server name {:?}", ssl);
+                return;
+            }
+        };
+        let tls = match config::store::get_tls() {
+            Some(tls) => tls,
+            None => {
+                tracing::error!("TLS configuration not found");
+                return;
+            }
+        };
+        let cert = match tls.get(server_name) {
+            Some(c) => c,
+            None => {
+                tracing::error!("Certificate not found for {}", server_name);
+                return;
+            }
+        };
+        println!("Certificate found for {:?}", cert.cert);
+        println!("Certificate found for {:?}", cert.key);
+        // set tls certificate
+        if let Err(e) = ext::ssl_use_certificate(ssl, &cert.cert) {
+            tracing::error!("ssl use certificate fail: {}", e);
+        }
+        // set private key
+        if let Err(e) = ext::ssl_use_private_key(ssl, &cert.key) {
+            tracing::error!("ssl use private key fail: {}", e);
+        }
+        // set chain certificate
+        if let Some(chain) = &cert.chain {
+            if let Err(e) = ext::ssl_add_chain_cert(ssl, chain) {
+                tracing::error!("ssl add chain cert fail: {}", e);
+            }
+        }
     }
 }
 
@@ -107,6 +176,7 @@ impl ProxyHttp for EasyProxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<bool> {
+        // println!("request_filter");
         // create a new response
         let mut res = response::Response::new();
         // get the path
