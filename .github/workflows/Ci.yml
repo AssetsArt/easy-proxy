@@ -15,9 +15,8 @@ jobs:
       - name: Set up Rust
         uses: actions/setup-rust@v1
         with:
-          rust-version: stable
+          toolchain: stable
 
-      - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build Linux binary
