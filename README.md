@@ -6,7 +6,7 @@ based on [pingora](https://github.com/cloudflare/pingora)
 ## Features
 
 Easy Proxy supports the following features:
-- Endpoints
+- Service Endpoint
   - [x] HTTP
   - [ ] HTTPS
   - [ ] WASM (WebAssembly)
