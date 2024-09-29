@@ -14,6 +14,9 @@ use pingora::{
 };
 use serde_json::json;
 
+// static
+static WELL_KNOWN_PAHT_PREFIX: &str = "/.well-known/acme-challenge/";
+
 #[derive(Debug, Clone)]
 pub struct EasyProxy {}
 
@@ -123,6 +126,11 @@ impl ProxyHttp for EasyProxy {
             },
             None => "",
         };
+
+        // check if the path is a well-known path
+        if !host.is_empty() && path.starts_with(WELL_KNOWN_PAHT_PREFIX) {
+            return Ok(true);
+        }
 
         // get the store configuration
         let store_conf = match config::store::get() {

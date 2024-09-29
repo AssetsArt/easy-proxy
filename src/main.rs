@@ -5,6 +5,7 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
+pub mod acme;
 mod commands;
 mod config;
 pub mod errors;

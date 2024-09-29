@@ -20,6 +20,10 @@ fnv = "1"
 tokio = { version = "1", features = ["rt"] }
 http = "1.1"
 mimalloc = "0.1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+ring = "0.17"
+base64 = "0.22"
+sha2 = "0.10"
 
 [profile.release]
 overflow-checks = true
