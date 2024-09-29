@@ -95,7 +95,7 @@ pub struct ServiceReference {
     pub rewrite: Option<String>,
 }
 
-pub async fn load() -> Result<(), Errors> {
+pub async fn read() -> Result<Vec<ProxyConfig>, Errors> {
     let conf = runtime::config();
     let confid_dir = conf.config_dir.clone();
     let proxy_conf_path = PathBuf::from(confid_dir);
@@ -129,7 +129,11 @@ pub async fn load() -> Result<(), Errors> {
         })?;
         configs.push(config);
     }
-    // println!("Configs: {:#?}", configs);
+    Ok(configs)
+}
+
+pub async fn load() -> Result<(), Errors> {
+    let configs = read().await?;
     match store::load(configs).await {
         Ok(conf) => {
             store::set(conf);
