@@ -352,7 +352,13 @@ impl ProxyHttp for EasyProxy {
         // modify the request
         let route = matched.value;
         if let Some(tls) = &route.tls {
-            if tls.redirect.unwrap_or(false) && session.req_header().version != Version::HTTP_2 {
+            // println!("TLS: {:?}", session.digest().unwrap().ssl_digest.clone().unwrap());
+            let is_tls = match session.digest() {
+                Some(d) => d.ssl_digest.is_some(),
+                None => false,
+            };
+            // println!("TLS: {}", is_tls);
+            if tls.redirect.unwrap_or(false) && is_tls {
                 // println!("Redirecting to https");
                 if tls_port != "443" {
                     res.redirect_https(host, path, Some(tls_port.to_string()));
