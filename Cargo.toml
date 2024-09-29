@@ -26,6 +26,7 @@ base64 = "0.22"
 sha2 = "0.10"
 rcgen = "0.13"
 openssl = { version = "0.10", features = ["vendored"] }
+clap = { version="4.5", features = ["derive"] }
 
 [profile.release]
 overflow-checks = true
