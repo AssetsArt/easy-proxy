@@ -21,7 +21,7 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Install xtask
-        run: cargo install xtask
+        run: cargo install cargo-xtask
 
       - name: Install configure-crosstool
         run: cargo xtask configure-crosstool aarch64-apple-darwin x86_64-apple-darwin
