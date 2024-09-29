@@ -10,6 +10,7 @@ use pingora::{
     prelude::{HttpPeer, Opt},
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
+    ErrorType,
 };
 use serde_json::json;
 
@@ -84,7 +85,6 @@ impl EasyProxy {
 
 pub struct Context {
     pub backend: Backend,
-    pub peer: HttpPeer,
     pub variables: HashMap<String, String>,
 }
 
@@ -95,7 +95,6 @@ impl ProxyHttp for EasyProxy {
         Context {
             // Set the default backend
             backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
-            peer: HttpPeer::new("127.0.0.1:80", false, String::new()),
             variables: HashMap::new(),
         }
     }
@@ -267,17 +266,6 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
-        let peer = match ctx.backend.ext.get::<HttpPeer>() {
-            Some(p) => p.clone(),
-            None => {
-                res.status(500).body_json(json!({
-                    "error": "CONFIG_ERROR",
-                    "message": "No peer found",
-                }));
-                return Ok(res.send(session).await);
-            }
-        };
-        ctx.peer = peer;
         // return false to continue processing the request
         Ok(false)
     }
@@ -287,6 +275,16 @@ impl ProxyHttp for EasyProxy {
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
-        Ok(Box::new(ctx.peer.clone()))
+        let peer = match ctx.backend.ext.get::<HttpPeer>() {
+            Some(p) => p.clone(),
+            None => {
+                return Err(pingora::Error::because(
+                    ErrorType::InternalError,
+                    "[upstream_peer]",
+                    Errors::ConfigError(format!("[backend:{}] no peer found", ctx.backend.addr)),
+                ));
+            }
+        };
+        Ok(Box::new(peer))
     }
 }
