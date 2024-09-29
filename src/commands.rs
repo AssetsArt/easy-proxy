@@ -213,9 +213,9 @@ impl Commands {
                         };
 
                         if command.message_type == "error" {
-                            tracing::error!("Received error: {}", command.message);
+                            tracing::error!("{}", command.message);
                         } else {
-                            tracing::info!("Received message: {}", command.message);
+                            tracing::info!("{}", command.message);
                         }
                     }
                     Err(e) => {
