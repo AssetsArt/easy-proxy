@@ -48,23 +48,23 @@ echo "Downloading $BINARY_NAME from $DOWNLOAD_URL..."
 curl -L "$DOWNLOAD_URL" -o "$BINARY_NAME"
 
 # Download checksums file
-CHECKSUM_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/checksums.txt"
+CHECKSUM_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/linux-checksums.txt"
 echo "Downloading checksums from $CHECKSUM_URL..."
-curl -L "$CHECKSUM_URL" -o "checksums.txt"
+curl -L "$CHECKSUM_URL" -o "linux-checksums.txt"
 
 # Verify checksum
 echo "Verifying checksum..."
-EXPECTED_CHECKSUM=$(grep "$BINARY_NAME" checksums.txt | cut -d ' ' -f 1)
+EXPECTED_CHECKSUM=$(grep "$BINARY_NAME" linux-checksums.txt | cut -d ' ' -f 1)
 ACTUAL_CHECKSUM=$(sha256sum "$BINARY_NAME" | cut -d ' ' -f 1)
 
 if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
     echo "Checksum verification failed!"
-    rm "$BINARY_NAME" checksums.txt
+    rm "$BINARY_NAME" linux-checksums.txt
     exit 1
 fi
 
 # Clean up checksums file
-rm checksums.txt
+rm linux-checksums.txt
 
 # Make the binary executable
 chmod +x "$BINARY_NAME"
