@@ -50,18 +50,6 @@ jobs:
           mkdir -p build/linux-musl/
           cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux-musl/
 
-      - name: Build macOS binary aarch64
-        run: |
-          cross build --target aarch64-apple-darwin --release
-          mkdir -p build/macos-aarch64
-          cp target/aarch64-apple-darwin/release/easy-proxy build/macos-aarch64/
-
-      - name: Build macOS binary x86_64
-        run: |
-          cross build --target x86_64-apple-darwin --release
-          mkdir -p build/macos-x86_64
-          cp target/x86_64-apple-darwin/release/easy-proxy build/macos-x86_64/
-
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
