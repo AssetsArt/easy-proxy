@@ -20,6 +20,15 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Extract version from Cargo.toml
+        id: extract_version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       # - name: Build Linux binary x86_64-gnu
       #   run: |
       #     cross build --target x86_64-unknown-linux-gnu --release
@@ -43,15 +52,6 @@ jobs:
       #     cross build --target aarch64-unknown-linux-musl --release
       #     mkdir -p build/linux-musl/
       #     cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux-musl/
-
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Extract version from Cargo.toml
-        id: extract_version
-        run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Push binaries to release
         uses: softprops/action-gh-release@v1
