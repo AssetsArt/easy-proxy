@@ -57,7 +57,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            build/linux-gnu/aarch64-easy-proxy-linux-gnu
+            build/linux/aarch64-easy-proxy-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: v${{ steps.extract_version.outputs.version }}
           name: v${{ steps.extract_version.outputs.version }}
