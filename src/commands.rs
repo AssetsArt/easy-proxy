@@ -61,6 +61,7 @@ impl Commands {
                             rt.block_on(async {
                                 match crate::config::proxy::load().await {
                                     Ok(_) => {
+                                        tracing::info!("Proxy configuration loaded successfully");
                                         res_command.message =
                                             "Proxy configuration loaded successfully".to_string();
                                         match serde_json::to_string(&res_command) {
@@ -85,7 +86,7 @@ impl Commands {
                                         };
                                     }
                                     Err(e) => {
-                                        // tracing::error!("Error: {:?}", e);
+                                        tracing::error!("Error: {:?}", e);
                                         res_command.message_type = "error".to_string();
                                         res_command.message = format!("Error: {:?}", e);
                                         match serde_json::to_string(&res_command) {
@@ -122,6 +123,7 @@ impl Commands {
                             rt.block_on(async {
                                 match crate::config::proxy::read().await {
                                     Ok(_) => {
+                                        tracing::info!("Proxy configuration test successful");
                                         res_command.message =
                                             "Proxy configuration test successful".to_string();
                                         match serde_json::to_string(&res_command) {
@@ -146,7 +148,7 @@ impl Commands {
                                         };
                                     }
                                     Err(e) => {
-                                        // tracing::error!("Error: {:?}", e);
+                                        tracing::error!("Error: {:?}", e);
                                         res_command.message_type = "error".to_string();
                                         res_command.message = format!("Error: {:?}", e);
                                         match serde_json::to_string(&res_command) {
