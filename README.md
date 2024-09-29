@@ -92,7 +92,8 @@ tls:
     key: /etc/easy-proxy/ssl/localhost.key
     cert: /etc/easy-proxy/ssl/localhost.crt
     # chain: .config/ssl/localhost.chain.crt # optional
-    
+
+# Routes to be proxied
 routes:
   - route:
       type: header
