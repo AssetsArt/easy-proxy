@@ -14,9 +14,22 @@ impl Response {
     }
 
     // redirect to https
-    pub fn redirect_https(&mut self, host: String, path: String) -> &mut Self {
+    pub fn redirect_https(
+        &mut self,
+        host: String,
+        path: String,
+        port: Option<String>,
+    ) -> &mut Self {
         self.status(301);
-        self.header("Location".to_string(), format!("https://{}{}", host, path));
+        let port = match port {
+            Some(p) => format!(":{}", p),
+            None => "".to_string(),
+        };
+        // println!("Redirecting to https://{}{}{}", host, port, path);
+        self.header(
+            "Location".to_string(),
+            format!("https://{}{}{}", host, port, path),
+        );
         self
     }
 

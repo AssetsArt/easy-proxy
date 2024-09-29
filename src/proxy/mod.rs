@@ -183,6 +183,10 @@ impl ProxyHttp for EasyProxy {
         let mut res = response::Response::new();
         // get the path
         let mut path = session.req_header().uri.path().to_string();
+        let tls_port = match &config::runtime::config().proxy.https {
+            Some(https) => https.split(':').last().unwrap_or("443"),
+            None => "443",
+        };
 
         // get the host
         let mut host = match session.get_header("host") {
@@ -345,7 +349,12 @@ impl ProxyHttp for EasyProxy {
         let route = matched.value;
         if let Some(tls) = &route.tls {
             if tls.redirect.unwrap_or(false) && session.req_header().version != Version::HTTP_2 {
-                res.redirect_https(host, path);
+                // println!("Redirecting to https");
+                if tls_port != "443" {
+                    res.redirect_https(host, path, Some(tls_port.to_string()));
+                } else {
+                    res.redirect_https(host, path, None);
+                }
                 return Ok(res.send(session).await);
             }
         }
