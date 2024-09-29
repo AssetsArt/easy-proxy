@@ -19,3 +19,12 @@ matchit = "0.8"
 fnv = "1"
 tokio = { version = "1", features = ["rt"] }
 http = "1.1"
+mimalloc = "0.1"
+
+[profile.release]
+overflow-checks = true
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

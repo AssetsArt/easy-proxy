@@ -1,3 +1,10 @@
+#[cfg(not(debug_assertions))]
+use mimalloc::MiMalloc;
+
+#[cfg(not(debug_assertions))]
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 mod commands;
 mod config;
 pub mod errors;
