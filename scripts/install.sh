@@ -40,7 +40,9 @@ if [ -z "$LATEST_TAG" ]; then
 fi
 
 # Construct download URLs
-BINARY_NAME="$BINARY-$OS-$ARCH"
+# aarch64-easy-proxy-linux-gnu
+BINARY_NAME="$ARCH-$BINARY-$OS"
+echo "Binary name: $BINARY_NAME"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$BINARY_NAME"
 
 # Download the binary
