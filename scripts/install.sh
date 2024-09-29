@@ -39,8 +39,11 @@ if [ -z "$LATEST_TAG" ]; then
     exit 1
 fi
 
+# OS gun or musl
+OS_TYPE=$(ldd --version | grep -q musl && echo "musl" || echo "gun")
+
 # Construct download URLs
-BINARY_NAME="$ARCH-$BINARY-$OS"
+BINARY_NAME="$BINARY-$ARCH-$OS-$OS_TYPE"
 echo "Binary name: $BINARY_NAME"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$BINARY_NAME"
 
