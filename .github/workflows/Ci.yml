@@ -20,13 +20,40 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Build Linux binary
+      - name: Install configure-crosstool
+        run: cargo xtask configure-crosstool aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build Linux binary x86_64-gnu
         run: |
           cross build --target x86_64-unknown-linux-gnu --release
           mkdir -p build/linux
-          cp target/x86_64-unknown-linux-gnu/release/easy-proxy build/linux/
+          cp target/x86_64-unknown-linux-gnu/release/easy-proxy build/linux-gnu/
 
-      - name: Build macOS binary
+      - name: Build Linux binary x86_64-musl
+        run: |
+          cross build --target x86_64-unknown-linux-musl --release
+          mkdir -p build/linux
+          cp target/x86_64-unknown-linux-musl/release/easy-proxy build/linux-musl/
+
+      - name: Build Linux binary aarch64-gnu
+        run: |
+          cross build --target aarch64-unknown-linux-gnu --release
+          mkdir -p build/linux
+          cp target/aarch64-unknown-linux-gnu/release/easy-proxy build/linux-gnu/
+
+      - name: Build Linux binary aarch64-musl
+        run: |
+          cross build --target aarch64-unknown-linux-musl --release
+          mkdir -p build/linux
+          cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux-musl/
+
+      - name: Build macOS binary aarch64
+        run: |
+          cross build --target aarch64-apple-darwin --release
+          mkdir -p build/macos
+          cp target/aarch64-apple-darwin/release/easy-proxy build/macos/
+
+      - name: Build macOS binary x86_64
         run: |
           cross build --target x86_64-apple-darwin --release
           mkdir -p build/macos
