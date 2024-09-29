@@ -215,6 +215,20 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
+        // x-real-ip
+        let ip = match session.get_header("x-real-ip") {
+            Some(h) => match h.to_str() {
+                Ok(h) => format!("{}-{}", ip, h),
+                Err(e) => {
+                    res.status(400).body_json(json!({
+                        "error": "PARSE_ERROR",
+                        "message": e.to_string(),
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            },
+            None => ip,
+        };
 
         // prepare the selection key
         let service_ref = &matched.value.service;
