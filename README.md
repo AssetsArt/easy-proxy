@@ -6,6 +6,11 @@ based on [pingora](https://github.com/cloudflare/pingora)
 ## Features
 
 Easy Proxy supports the following features:
+- Endpoints
+  - [x] HTTP
+  - [ ] HTTPS
+  - [ ] WASM (WebAssembly)
+  - [ ] FFI (Foreign Function Interface)
 - Routing
   - [x] Host-based routing
   - [x] Header-based routing
@@ -18,7 +23,9 @@ Easy Proxy supports the following features:
   - [x] Random
   - [x] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
   - [x] Weighted
-- [ ] Filtering
+- Middleware / Plugins Support
+  - [ ] FFI (Foreign Function Interface)
+  - [ ] WASM (WebAssembly)
 - [ ] Health Checking
 - [ ] Logging and Monitoring
 - Certificate Management
