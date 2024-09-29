@@ -18,10 +18,12 @@ Easy Proxy supports the following features:
   - [x] Random
   - [x] Consistent # Weighted Ketama consistent hashing | [pingora - consistent](https://github.com/cloudflare/pingora/blob/main/pingora-load-balancing/src/selection/consistent.rs)
   - [x] Weighted
-- [ ] SSL Termination
 - [ ] Filtering
 - [ ] Health Checking
 - [ ] Logging and Monitoring
+- Certificate Management
+  - [x] Custom
+  - [ ] ACME
 - Protocol Support
   - [x] HTTP
   - [x] HTTPS
