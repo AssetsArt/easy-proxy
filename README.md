@@ -40,7 +40,8 @@ Easy Proxy supports the following features:
 ### Global Configuration
 ```yaml
 proxy:
-  addr: "0.0.0.0:8088"
+  http: "0.0.0.0:8088"
+  https: "0.0.0.0:8443"
 config_dir: ".config/proxy"
 pingora:
   # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
