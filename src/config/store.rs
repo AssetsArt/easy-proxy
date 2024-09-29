@@ -1,5 +1,6 @@
 use super::proxy::{Header, Path, ProxyConfig, ServiceReference};
 use crate::errors::Errors;
+use http::Extensions;
 use once_cell::sync::OnceCell;
 use pingora::{
     lb::{
@@ -11,6 +12,7 @@ use pingora::{
         },
         Backend, Backends, LoadBalancer,
     },
+    prelude::HttpPeer,
     protocols::l4::socket::SocketAddr,
 };
 use std::collections::{BTreeSet, HashMap};
@@ -73,7 +75,8 @@ async fn load_backend_type(
 ) -> Result<BackendType, Errors> {
     let mut backends: BTreeSet<Backend> = BTreeSet::new();
     for e in endpoints {
-        let addr: SocketAddr = match format!("{}:{}", e.ip, e.port).parse() {
+        let endpoint = format!("{}:{}", e.ip, e.port);
+        let addr: SocketAddr = match endpoint.parse() {
             Ok(val) => val,
             Err(e) => {
                 return Err(Errors::ConfigError(format!(
@@ -82,10 +85,19 @@ async fn load_backend_type(
                 )));
             }
         };
-        backends.insert(Backend {
+        let mut backend = Backend {
             addr,
             weight: e.weight.unwrap_or(1) as usize,
-        });
+            ext: Extensions::new(),
+        };
+        if backend
+            .ext
+            .insert::<HttpPeer>(HttpPeer::new(endpoint, false, String::new()))
+            .is_some()
+        {
+            return Err(Errors::ConfigError("Unable to insert HttpPeer".to_string()));
+        }
+        backends.insert(backend);
     }
     let disco = discovery::Static::new(backends);
     // Initialize the appropriate iterator based on the algorithm

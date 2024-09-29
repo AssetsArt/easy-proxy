@@ -84,8 +84,7 @@ impl EasyProxy {
 
 pub struct Context {
     pub backend: Backend,
-    pub sni: String,
-    pub tls: bool,
+    pub peer: HttpPeer,
     pub variables: HashMap<String, String>,
 }
 
@@ -96,8 +95,7 @@ impl ProxyHttp for EasyProxy {
         Context {
             // Set the default backend
             backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
-            sni: "one.one.one.one".to_string(),
-            tls: false,
+            peer: HttpPeer::new("127.0.0.1:80", false, String::new()),
             variables: HashMap::new(),
         }
     }
@@ -126,11 +124,6 @@ impl ProxyHttp for EasyProxy {
             },
             None => "",
         };
-
-        // set the SNI
-        if !host.is_empty() {
-            ctx.sni = host.to_string();
-        }
 
         // get the store configuration
         let store_conf = match config::store::get() {
@@ -274,7 +267,17 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         };
-
+        let peer = match ctx.backend.ext.get::<HttpPeer>() {
+            Some(p) => p.clone(),
+            None => {
+                res.status(500).body_json(json!({
+                    "error": "CONFIG_ERROR",
+                    "message": "No peer found",
+                }));
+                return Ok(res.send(session).await);
+            }
+        };
+        ctx.peer = peer;
         // return false to continue processing the request
         Ok(false)
     }
@@ -284,7 +287,6 @@ impl ProxyHttp for EasyProxy {
         _session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> pingora::Result<Box<HttpPeer>> {
-        let peer = HttpPeer::new(&ctx.backend.addr, ctx.tls, ctx.sni.clone());
-        Ok(Box::new(peer))
+        Ok(Box::new(ctx.peer.clone()))
     }
 }
