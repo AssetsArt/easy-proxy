@@ -82,8 +82,7 @@ services:
         port: 3001
         weight: 1 # Optional
 
-# A list of routes to be proxied 
-header_selector: x-easy-proxy-svc
+# TLS Configuration
 tls:
   - name: my-tls
     type: custom # acme, custom
@@ -93,6 +92,7 @@ tls:
     key: /etc/easy-proxy/ssl/localhost.key
     cert: /etc/easy-proxy/ssl/localhost.crt
     # chain: .config/ssl/localhost.chain.crt # optional
+    
 routes:
   - route:
       type: header
