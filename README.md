@@ -16,6 +16,12 @@ curl -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/u
 ## Features
 
 Easy Proxy supports the following features:
+- Protocol Support
+  - [x] HTTP
+  - [x] HTTPS
+- Certificate Management
+  - [x] Custom
+  - [ ] ACME
 - Service Endpoint
   - [x] HTTP
   - [ ] HTTPS
@@ -38,12 +44,6 @@ Easy Proxy supports the following features:
   - [ ] WASM (WebAssembly)
 - [ ] Health Checking
 - [ ] Logging and Monitoring
-- Certificate Management
-  - [x] Custom
-  - [ ] ACME
-- Protocol Support
-  - [x] HTTP
-  - [x] HTTPS
 
 ## Example configuration
 
