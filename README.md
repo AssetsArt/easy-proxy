@@ -21,7 +21,7 @@ Easy Proxy supports the following features:
   - [x] HTTPS
 - Certificate Management
   - [x] Custom
-  - [ ] ACME
+  - [ ] ACME (WIP)
 - Service Endpoint
   - [x] HTTP
   - [ ] HTTPS
