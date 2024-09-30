@@ -49,6 +49,29 @@ fn main() {
         }
     }
 
+    let conf = config::runtime::config();
+    let http = &conf.proxy.http;
+    let https = &conf.proxy.https;
+
+    // check if the proxy is running
+    match std::net::TcpListener::bind(http) {
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!("An error occurred while trying to bind to {}: {}", http, e);
+            std::process::exit(1);
+        }
+    };
+    match https {
+        Some(https) => match std::net::TcpListener::bind(https) {
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("An error occurred while trying to bind to {}: {}", https, e);
+                std::process::exit(1);
+            }
+        },
+        None => {}
+    }
+
     let rt = tokio::runtime::Runtime::new()
         .map_err(|e| tracing::error!("Error: {:?}", e))
         .unwrap();

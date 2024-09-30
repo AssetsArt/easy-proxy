@@ -74,6 +74,8 @@ impl EasyProxy {
         if let Some(upstream_keepalive_pool_size) = app_conf.pingora.upstream_keepalive_pool_size {
             conf.upstream_keepalive_pool_size = upstream_keepalive_pool_size;
         }
+        conf.grace_period_seconds = conf.grace_period_seconds.or(Some(1));
+        conf.graceful_shutdown_timeout_seconds = conf.graceful_shutdown_timeout_seconds.or(Some(1));
         pingora_server.configuration = conf.into();
         pingora_server.bootstrap();
         let mut pingora_svc =

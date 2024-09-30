@@ -28,6 +28,8 @@ pub struct Pingora {
     pub group: Option<String>,
     pub ca_file: Option<String>,
     pub upstream_keepalive_pool_size: Option<usize>,
+    pub grace_period_seconds: Option<u64>,
+    pub graceful_shutdown_timeout_seconds: Option<u64>,
 }
 
 // Initialize global configuration

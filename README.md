@@ -65,6 +65,8 @@ pingora:
   # upgrade_sock: /tmp/pingora_upgrade.sock
   # user: nobody
   # group: webusers
+  # grace_period_seconds: 1
+  # graceful_shutdown_timeout_seconds: 1
   # ca_file: /etc/ssl/certs/ca-certificates.crt
 ```
 
