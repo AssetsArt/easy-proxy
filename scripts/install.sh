@@ -169,6 +169,6 @@ fi
 
 # Verify service status
 echo "Checking easy-proxy service status..."
-sudo systemctl status easy-proxy
+echo "Service status: $(systemctl is-active easy-proxy)"
 
 echo "Installation and setup completed successfully!"
