@@ -39,8 +39,12 @@ if [ -z "$LATEST_TAG" ]; then
     exit 1
 fi
 
-# OS gnu or musl
-OS_TYPE=$(ldd --version | grep -q musl && echo "musl" || echo "gnu")
+# Detect OS type (gnu or musl)
+if ldd --version 2>&1 | grep -q musl; then
+    OS_TYPE="musl"
+else
+    OS_TYPE="gnu"
+fi
 
 # Construct download URLs
 BINARY_NAME="$BINARY-$ARCH-$OS-$OS_TYPE"
@@ -73,9 +77,21 @@ rm linux-checksums.txt
 # Make the binary executable
 chmod +x "$BINARY_NAME"
 
-# Move the binary to the install directory
-echo "Installing $BINARY_NAME to $INSTALL_DIR..."
-sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
+# Check if binary already exists
+if [ -f "$INSTALL_DIR/$BINARY" ]; then
+    echo "Existing installation detected. Updating $BINARY..."
+    sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
+    # Restart the service if it's running
+    if systemctl is-active --quiet easy-proxy; then
+        echo "Restarting easy-proxy service..."
+        sudo systemctl restart easy-proxy
+    else
+        echo "easy-proxy service is not running."
+    fi
+else
+    echo "Installing $BINARY_NAME to $INSTALL_DIR..."
+    sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
+fi
 
 # Create configuration directory
 CONFIG_DIR="/etc/easy-proxy"
@@ -83,6 +99,7 @@ if [ ! -d "$CONFIG_DIR" ]; then
     echo "Creating configuration directory at $CONFIG_DIR..."
     sudo mkdir -p "$CONFIG_DIR"
 fi
+
 CONFIG_DIR_PROXY="$CONFIG_DIR/proxy"
 if [ ! -d "$CONFIG_DIR_PROXY" ]; then
     echo "Creating configuration directory at $CONFIG_DIR_PROXY..."
@@ -99,9 +116,7 @@ proxy:
   https: "0.0.0.0:443"
 config_dir: "/etc/easy-proxy/proxy"
 pingora:
-  # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
   daemon: true
-  # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/conf.md
   threads: $(nproc)
   # upstream_keepalive_pool_size: 20
   # work_stealing: true
@@ -110,6 +125,8 @@ pingora:
   # upgrade_sock: /tmp/pingora_upgrade.sock
   # user: nobody
   # group: webusers
+  # grace_period_seconds: 1
+  # graceful_shutdown_timeout_seconds: 1
   # ca_file: /etc/ssl/certs/ca-certificates.crt
 EOL
 else
@@ -143,6 +160,11 @@ EOL
     sudo systemctl start easy-proxy
 else
     echo "Service file already exists at $SERVICE_FILE. Skipping creation."
+    # Reload systemd daemon in case the service file was updated
+    sudo systemctl daemon-reload
+    # Restart the service
+    echo "Restarting easy-proxy service..."
+    sudo systemctl restart easy-proxy
 fi
 
 # Verify service status
