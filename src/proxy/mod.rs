@@ -77,7 +77,6 @@ impl EasyProxy {
         conf.grace_period_seconds = conf.grace_period_seconds.or(Some(1));
         conf.graceful_shutdown_timeout_seconds = conf.graceful_shutdown_timeout_seconds.or(Some(1));
         pingora_server.configuration = conf.into();
-        pingora_server.bootstrap();
         let mut pingora_svc =
             proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
         pingora_svc.add_tcp(&app_conf.proxy.http);
@@ -102,6 +101,7 @@ impl EasyProxy {
         // prometheus_service_http.add_tcp("127.0.0.1:6192");
         // pingora_server.add_service(prometheus_service_http);
 
+        pingora_server.bootstrap();
         Ok(pingora_server)
     }
 }
