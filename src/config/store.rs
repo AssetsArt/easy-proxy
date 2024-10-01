@@ -29,20 +29,24 @@ pub struct TlsGlobalConfig {
 
 #[derive(Clone)]
 pub enum BackendType {
-    RoundRobin(Arc<LoadBalancer<Weighted<RoundRobin>>>, String),
-    Weighted(Arc<LoadBalancer<Weighted<fnv::FnvHasher>>>, String),
-    Consistent(Arc<LoadBalancer<KetamaHashing>>, String),
-    Random(Arc<LoadBalancer<Weighted<Random>>>, String),
+    RoundRobin(Arc<LoadBalancer<Weighted<RoundRobin>>>),
+    Weighted(Arc<LoadBalancer<Weighted<fnv::FnvHasher>>>),
+    Consistent(Arc<LoadBalancer<KetamaHashing>>),
+    Random(Arc<LoadBalancer<Weighted<Random>>>),
 }
 
 // to string
 impl std::fmt::Display for BackendType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BackendType::RoundRobin(_, s) => write!(f, "RoundRobin({})", s),
-            BackendType::Weighted(_, s) => write!(f, "Weighted({})", s),
-            BackendType::Consistent(_, s) => write!(f, "Consistent({})", s),
-            BackendType::Random(_, s) => write!(f, "Random({})", s),
+            BackendType::RoundRobin(v) => {
+                write!(f, "RoundRobin({:#?})", v.backends().get_backend())
+            }
+            BackendType::Weighted(v) => write!(f, "Weighted({:#?})", v.backends().get_backend()),
+            BackendType::Consistent(v) => {
+                write!(f, "Consistent({:#?})", v.backends().get_backend())
+            }
+            BackendType::Random(v) => write!(f, "Random({:#?})", v.backends().get_backend()),
         }
     }
 }
@@ -118,7 +122,7 @@ async fn load_backend_type(
                     return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
-            BackendType::RoundRobin(Arc::new(upstreams), format!("{:#?}", "backends"))
+            BackendType::RoundRobin(Arc::new(upstreams))
         }
         "weighted" => {
             let backend =
@@ -129,7 +133,7 @@ async fn load_backend_type(
                     return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
-            BackendType::Weighted(Arc::new(backend), format!("{:#?}", "backends"))
+            BackendType::Weighted(Arc::new(backend))
         }
         "consistent" => {
             let backend = LoadBalancer::<KetamaHashing>::from_backends(Backends::new(disco));
@@ -139,7 +143,7 @@ async fn load_backend_type(
                     return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
-            BackendType::Consistent(Arc::new(backend), format!("{:#?}", "backends"))
+            BackendType::Consistent(Arc::new(backend))
         }
         "random" => {
             let upstreams = LoadBalancer::<Weighted<Random>>::from_backends(Backends::new(disco));
@@ -149,7 +153,7 @@ async fn load_backend_type(
                     return Err(Errors::PingoraError(format!("{}", e)));
                 }
             }
-            BackendType::Random(Arc::new(upstreams), format!("{:#?}", "backends"))
+            BackendType::Random(Arc::new(upstreams))
         }
         _ => {
             return Err(Errors::ConfigError(format!(
