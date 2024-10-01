@@ -54,7 +54,6 @@ jobs:
           mkdir -p build/linux/
           cp target/aarch64-unknown-linux-musl/release/easy-proxy build/linux/easy-proxy-aarch64-linux-musl
 
-
       - name: Generate Checksums
         run: |
           cd build/linux

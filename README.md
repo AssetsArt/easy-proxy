@@ -5,12 +5,12 @@ based on [pingora](https://github.com/cloudflare/pingora)
 
 ## Installation or Upgrade
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/install.sh | bash
+curl -H 'Cache-Control: no-cache' -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/install.sh | bash
 ```
 
 ## Uninstall
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/uninstall.sh | bash
+curl -H 'Cache-Control: no-cache' -fsSL https://raw.githubusercontent.com/AssetsArt/easy-proxy/main/scripts/uninstall.sh | bash
 ```
 
 ## Features
@@ -65,8 +65,8 @@ pingora:
   # upgrade_sock: /tmp/pingora_upgrade.sock
   # user: nobody
   # group: webusers
-  # grace_period_seconds: 1
-  # graceful_shutdown_timeout_seconds: 1
+  grace_period_seconds: 60
+  graceful_shutdown_timeout_seconds: 10
   # ca_file: /etc/ssl/certs/ca-certificates.crt
 ```
 

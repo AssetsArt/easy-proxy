@@ -8,13 +8,10 @@ INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/easy-proxy"
 SERVICE_FILE="/etc/systemd/system/easy-proxy.service"
 
-# Stop the service if it's running
-echo "Stopping $BINARY service..."
-sudo systemctl stop $BINARY || true
-
-# Disable the service
-echo "Disabling $BINARY service..."
-sudo systemctl disable $BINARY || true
+# Stop and disable the service
+echo "Stopping and disabling $BINARY service..."
+sudo systemctl stop $BINARY 2>/dev/null || echo "$BINARY service not running."
+sudo systemctl disable $BINARY 2>/dev/null || echo "$BINARY service not enabled."
 
 # Remove the binary
 if [ -f "$INSTALL_DIR/$BINARY" ]; then
@@ -42,4 +39,12 @@ else
     echo "Service file not found at $SERVICE_FILE."
 fi
 
-echo "$BINARY has been uninstalled successfully."
+PID=$(ps aux | grep $BINARY | grep -v grep | awk '{print $2}')
+if [ -n "$PID" ]; then
+    echo "$BINARY is still running with PID $PID."
+    kill -s SIGKILL $PID
+    echo "$BINARY has been uninstalled successfully."
+else
+    echo "$BINARY has been uninstalled successfully."
+fi
+

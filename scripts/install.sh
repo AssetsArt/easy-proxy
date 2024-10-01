@@ -6,110 +6,77 @@ set -e
 REPO="AssetsArt/easy-proxy"  # Replace with your GitHub username/repo
 BINARY="easy-proxy"
 INSTALL_DIR="/usr/local/bin"
+CONFIG_DIR="/etc/easy-proxy"
+SERVICE_FILE="/etc/systemd/system/easy-proxy.service"
+START_SCRIPT="$CONFIG_DIR/scripts/start.sh"
+STOP_SCRIPT="$CONFIG_DIR/scripts/stop.sh"
+RESTART_SCRIPT="$CONFIG_DIR/scripts/restart.sh"
+IS_CREATE_SERVICE=true
 
-# Detect OS
-OS=$(uname | tr '[:upper:]' '[:lower:]')
-
-# Only proceed if OS is Linux
-if [[ "$OS" != "linux" ]]; then
-    echo "This install script currently supports Linux only."
-    exit 1
+# Parse arguments
+if [ "$1" == "--no-service" ]; then
+    IS_CREATE_SERVICE=false
 fi
 
-# Detect architecture
+# Detect OS and architecture
+OS=$(uname | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 case $ARCH in
-    x86_64)
-        ARCH="x86_64"
-        ;;
-    arm64 | aarch64)
-        ARCH="aarch64"
-        ;;
-    *)
-        echo "Unsupported architecture: $ARCH"
-        exit 1
-        ;;
+    x86_64) ARCH="x86_64" ;;
+    arm64 | aarch64) ARCH="aarch64" ;;
+    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# Get the latest version tag from GitHub
-LATEST_TAG=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-
-if [ -z "$LATEST_TAG" ]; then
-    echo "Failed to fetch the latest version tag."
+# Ensure only Linux is supported
+if [[ "$OS" != "linux" ]]; then
+    echo "This install script supports Linux only."
     exit 1
 fi
 
 # Detect OS type (gnu or musl)
-if ldd --version 2>&1 | grep -q musl; then
-    OS_TYPE="musl"
-else
-    OS_TYPE="gnu"
+OS_TYPE=$(ldd --version 2>&1 | grep -q musl && echo "musl" || echo "gnu")
+
+# Fetch latest release tag from GitHub
+LATEST_TAG=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+if [ -z "$LATEST_TAG" ]; then
+    echo "Failed to fetch the latest version."
+    exit 1
 fi
 
-# Construct download URLs
+# Construct download URL
 BINARY_NAME="$BINARY-$ARCH-$OS-$OS_TYPE"
-echo "Binary name: $BINARY_NAME"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$BINARY_NAME"
-
-# Download the binary
-echo "Downloading $BINARY_NAME from $DOWNLOAD_URL..."
-curl -L "$DOWNLOAD_URL" -o "$BINARY_NAME"
-
-# Download checksums file
 CHECKSUM_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/linux-checksums.txt"
-echo "Downloading checksums from $CHECKSUM_URL..."
+
+# Download binary and checksum
+curl -L "$DOWNLOAD_URL" -o "$BINARY_NAME"
 curl -L "$CHECKSUM_URL" -o "linux-checksums.txt"
 
 # Verify checksum
-echo "Verifying checksum..."
 EXPECTED_CHECKSUM=$(grep "$BINARY_NAME" linux-checksums.txt | cut -d ' ' -f 1)
 ACTUAL_CHECKSUM=$(sha256sum "$BINARY_NAME" | cut -d ' ' -f 1)
-
 if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
     echo "Checksum verification failed!"
     rm "$BINARY_NAME" linux-checksums.txt
     exit 1
 fi
-
-# Clean up checksums file
 rm linux-checksums.txt
 
-# Make the binary executable
+# Install binary
 chmod +x "$BINARY_NAME"
+sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
 
-# Check if binary already exists
-if [ -f "$INSTALL_DIR/$BINARY" ]; then
-    echo "Existing installation detected. Updating $BINARY..."
-    sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
-    # Restart the service if it's running
-    if systemctl is-active --quiet easy-proxy; then
-        echo "Restarting easy-proxy service..."
-        sudo systemctl restart easy-proxy
-    else
-        echo "easy-proxy service is not running."
-    fi
-else
-    echo "Installing $BINARY_NAME to $INSTALL_DIR..."
-    sudo mv "$BINARY_NAME" "$INSTALL_DIR/$BINARY"
+# Restart service if running
+if systemctl is-active --quiet easy-proxy; then
+    echo "Restarting easy-proxy service..."
+    sudo systemctl restart easy-proxy
 fi
 
-# Create configuration directory
-CONFIG_DIR="/etc/easy-proxy"
-if [ ! -d "$CONFIG_DIR" ]; then
-    echo "Creating configuration directory at $CONFIG_DIR..."
-    sudo mkdir -p "$CONFIG_DIR"
-fi
-
-CONFIG_DIR_PROXY="$CONFIG_DIR/proxy"
-if [ ! -d "$CONFIG_DIR_PROXY" ]; then
-    echo "Creating configuration directory at $CONFIG_DIR_PROXY..."
-    sudo mkdir -p "$CONFIG_DIR_PROXY"
-fi
-
-# Write default configuration
+# Create configuration directory and default config
+sudo mkdir -p "$CONFIG_DIR/proxy"
 CONFIG_FILE="$CONFIG_DIR/conf.yaml"
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Writing default configuration to $CONFIG_FILE..."
+    echo "Creating default configuration..."
     sudo tee "$CONFIG_FILE" > /dev/null <<EOL
 proxy:
   http: "0.0.0.0:80"
@@ -118,57 +85,73 @@ config_dir: "/etc/easy-proxy/proxy"
 pingora:
   daemon: true
   threads: $(nproc)
-  # upstream_keepalive_pool_size: 20
-  # work_stealing: true
-  # error_log: /var/log/pingora/error.log
-  # pid_file: /run/pingora.pid
-  # upgrade_sock: /tmp/pingora_upgrade.sock
-  # user: nobody
-  # group: webusers
-  # grace_period_seconds: 1
-  # graceful_shutdown_timeout_seconds: 1
-  # ca_file: /etc/ssl/certs/ca-certificates.crt
+  grace_period_seconds: 60
+  graceful_shutdown_timeout_seconds: 10
 EOL
-else
-    echo "Configuration file already exists at $CONFIG_FILE. Skipping creation."
 fi
 
-# Create systemd service file
-SERVICE_FILE="/etc/systemd/system/easy-proxy.service"
-if [ ! -f "$SERVICE_FILE" ]; then
-    echo "Creating systemd service file at $SERVICE_FILE..."
-    sudo tee "$SERVICE_FILE" > /dev/null <<EOL
+# Create start, stop, and restart scripts
+sudo mkdir -p "$CONFIG_DIR/scripts"
+echo "Creating start/stop/restart scripts..."
+
+sudo tee "$START_SCRIPT" > /dev/null <<EOL
+#!/bin/bash
+mkdir -p /var/log/easy-proxy
+$INSTALL_DIR/$BINARY >> /var/log/easy-proxy/easy-proxy.log 2>&1
+PID=\$(ps aux | grep $BINARY | grep -v grep | awk '{print \$2}')
+if [ -n "\$PID" ]; then
+    echo "easy-proxy is running with PID \$PID."
+else
+    echo "easy-proxy is not running."
+fi
+EOL
+
+sudo tee "$STOP_SCRIPT" > /dev/null <<EOL
+#!/bin/bash
+PID=\$(ps aux | grep $INSTALL_DIR/$BINARY | grep -v grep | awk '{print \$2}')
+if [ -n "\$PID" ]; then
+    echo "Stopping easy-proxy with PID \$PID..."
+    kill -s SIGTERM \$PID
+else
+    echo "easy-proxy is not running."
+fi
+EOL
+
+sudo tee "$RESTART_SCRIPT" > /dev/null <<EOL
+#!/bin/bash
+$STOP_SCRIPT && $START_SCRIPT
+EOL
+
+sudo chmod +x "$START_SCRIPT" "$STOP_SCRIPT" "$RESTART_SCRIPT"
+
+# Create systemd service if required
+if [ "$IS_CREATE_SERVICE" = true ]; then
+    if [ ! -f "$SERVICE_FILE" ]; then
+        echo "Creating systemd service file..."
+        sudo tee "$SERVICE_FILE" > /dev/null <<EOL
 [Unit]
 Description=Easy Proxy Service
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/$BINARY
+ExecStart=$START_SCRIPT
+ExecStop=$STOP_SCRIPT
+ExecRestart=$RESTART_SCRIPT
+ExecReload=$INSTALL_DIR/$BINARY -r
 Restart=on-failure
+RestartSec=0
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
 EOL
-    # Reload systemd daemon
-    echo "Reloading systemd daemon..."
-    sudo systemctl daemon-reload
-
-    # Enable and start the service
-    echo "Enabling and starting easy-proxy service..."
-    sudo systemctl enable easy-proxy
-    sudo systemctl start easy-proxy
-else
-    echo "Service file already exists at $SERVICE_FILE. Skipping creation."
-    # Reload systemd daemon in case the service file was updated
-    sudo systemctl daemon-reload
-    # Restart the service
-    echo "Restarting easy-proxy service..."
-    sudo systemctl restart easy-proxy
+        sudo systemctl daemon-reload
+        sudo systemctl enable --now easy-proxy
+    else
+        echo "Service file already exists. Restarting service..."
+        sudo systemctl restart easy-proxy
+    fi
 fi
-
-# Verify service status
-echo "Checking easy-proxy service status..."
-echo "Service status: $(systemctl is-active easy-proxy)"
 
 echo "Installation and setup completed successfully!"
