@@ -4,8 +4,10 @@ use ring::rand::SystemRandom;
 use ring::signature::{EcdsaKeyPair, KeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 use serde_json::json;
 
+#[derive(Debug)]
 pub struct AcmeKeyPair {
-    key_pair: EcdsaKeyPair,
+    pub key_pair: EcdsaKeyPair,
+    pub pkcs8_bytes: Vec<u8>,
 }
 
 impl AcmeKeyPair {
@@ -17,7 +19,20 @@ impl AcmeKeyPair {
         let key_pair =
             EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8_bytes.as_ref(), &rng)
                 .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
-        Ok(AcmeKeyPair { key_pair })
+        Ok(AcmeKeyPair {
+            key_pair,
+            pkcs8_bytes: pkcs8_bytes.as_ref().to_vec(),
+        })
+    }
+
+    pub fn from_pkcs8(data: &[u8]) -> Result<Self, Errors> {
+        let rng = SystemRandom::new();
+        let key_pair = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, data, &rng)
+            .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
+        Ok(AcmeKeyPair {
+            key_pair,
+            pkcs8_bytes: data.to_vec(),
+        })
     }
 
     pub fn public_jwk(&self) -> serde_json::Value {

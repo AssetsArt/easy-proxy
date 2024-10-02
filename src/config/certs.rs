@@ -123,6 +123,20 @@ pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
                 }
             }
         }
+
+        // check if the cert and key files exist
+        let cert = match std::fs::read(format!("{}/{}.crt", ACME_PATH, tls.name)) {
+            Ok(val) => val,
+            Err(e) => {
+                return Ok(None);
+            }
+        };
+        let key = match std::fs::read(format!("{}/{}.key", ACME_PATH, tls.name)) {
+            Ok(val) => val,
+            Err(e) => {
+                return Ok(None);
+            }
+        };
     }
 
     Ok(None)
