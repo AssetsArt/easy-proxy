@@ -27,13 +27,16 @@ Easy Proxy supports the following features:
   - [ ] HTTPS
   - [ ] WASM (WebAssembly)
   - [ ] FFI (Foreign Function Interface)
-- Routing
-  - [x] Host-based routing
-  - [x] Header-based routing
-  - [x] Remove headers
+- Route Matching
+  - [x] Header-based
+  - [x] Host-based
+- Service Matching (Path)
+  - [x] Exact
+  - [x] Prefix
+- Modify Request
   - [x] Add headers
-  - [x] Rewrite by path
-  - [x] Path matching Exact, Prefix
+  - [x] Remove headers
+  - [x] Rewrite path
 - Load Balancing
   - [x] RoundRobin
   - [x] Random
@@ -50,8 +53,8 @@ Easy Proxy supports the following features:
 ### Global Configuration
 ```yaml
 proxy:
-  http: "0.0.0.0:8088"
-  https: "0.0.0.0:8443"
+  http: "0.0.0.0:80"
+  https: "0.0.0.0:443"
 config_dir: "/etc/easy-proxy/proxy"
 pingora:
   # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
@@ -121,7 +124,7 @@ routes:
           
   - route:
       type: host
-      value: localhost:8088
+      value: localhost
     name: my-route-1
     tls: # optional
       name: my-tls
