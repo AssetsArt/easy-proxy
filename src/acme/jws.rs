@@ -32,6 +32,7 @@ pub fn sign_request(
             .map_err(|e| Errors::AcmeJWSError(format!("Failed to encode protected JWS: {}", e)))?
             .as_bytes(),
     );
+
     let payload_b64 = if let Some(payload) = payload {
         URL_SAFE_NO_PAD.encode(
             serde_json::to_string(&payload)
@@ -43,9 +44,11 @@ pub fn sign_request(
     };
 
     let signing_input = format!("{}.{}", protected_b64, payload_b64);
+
     let signature = key_pair
         .sign(signing_input.as_bytes())
         .map_err(|e| Errors::AcmeJWSError(format!("Failed to sign JWS: {}", e)))?;
+
     let signature_b64 = URL_SAFE_NO_PAD.encode(&signature);
 
     let jws = json!({
