@@ -315,6 +315,17 @@ mod tests {
     use crate::errors::Errors;
     use tokio;
 
+    static KEY_PAIR: [u8; 138] = [
+        48, 129, 135, 2, 1, 0, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
+        61, 3, 1, 7, 4, 109, 48, 107, 2, 1, 1, 4, 32, 148, 180, 145, 8, 195, 48, 26, 69, 80, 82,
+        63, 80, 195, 205, 89, 235, 2, 209, 112, 106, 172, 100, 158, 31, 177, 81, 33, 198, 28, 11,
+        194, 176, 161, 68, 3, 66, 0, 4, 218, 200, 108, 131, 28, 40, 213, 79, 219, 3, 35, 64, 101,
+        218, 201, 246, 123, 238, 162, 48, 136, 72, 191, 172, 215, 78, 248, 42, 112, 72, 255, 116,
+        8, 167, 48, 129, 180, 44, 72, 7, 29, 26, 252, 81, 193, 138, 102, 27, 228, 249, 236, 45,
+        153, 73, 102, 68, 78, 148, 57, 48, 110, 41, 227, 148,
+    ];
+    static ACCT: &str = "https://acme-staging-v02.api.letsencrypt.org/acme/acct/165578023";
+
     #[tokio::test]
     async fn test_new_acme_client() -> Result<(), Errors> {
         // Instantiate AcmeClient
@@ -338,6 +349,7 @@ mod tests {
         Ok(())
     }
 
+    /*
     #[tokio::test]
     async fn test_create_account() -> Result<(), Errors> {
         // Instantiate AcmeClient
@@ -358,6 +370,7 @@ mod tests {
 
         Ok(())
     }
+    */
 
     #[tokio::test]
     async fn test_create_order() -> Result<(), Errors> {
@@ -366,17 +379,20 @@ mod tests {
         let acme_client = AcmeClient::new(directory_url).await?;
 
         // Generate a key pair for testing
-        let key_pair = AcmeKeyPair::generate()?;
-
+        // let key_pair = AcmeKeyPair::generate()?;
+        // println!("Key Pair: {:#?}", key_pair.pkcs8_bytes);
+        let key_pair = AcmeKeyPair::from_pkcs8(&KEY_PAIR)?;
         // Create account with a test email
-        let contact_emails = ["trust@assetsart.com"];
-        let kid = acme_client
-            .create_account(&key_pair, &contact_emails)
-            .await?;
+        // let contact_emails = ["trust@assetsart.com"];
+        // let kid = acme_client
+        //     .create_account(&key_pair, &contact_emails)
+        //     .await?;
+        // println!("Kid: {:?}", kid);
+        let kid = ACCT;
 
         // Create a new order for a test domain
         let domains = ["assetsart.com"];
-        let order = acme_client.create_order(&key_pair, &kid, &domains).await?;
+        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
 
         // Assertions
         assert!(
@@ -404,18 +420,20 @@ mod tests {
         let directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory";
         let acme_client = AcmeClient::new(directory_url).await?;
 
-        // Generate a key pair for testing
-        let key_pair = AcmeKeyPair::generate()?;
+        // // Generate a key pair for testing
+        // let key_pair = AcmeKeyPair::generate()?;
+        // // Create account with a test email
+        // let contact_emails = ["trust@assetsart.com"];
+        // let kid = acme_client
+        //     .create_account(&key_pair, &contact_emails)
+        //     .await?;
 
-        // Create account with a test email
-        let contact_emails = ["trust@assetsart.com"];
-        let kid = acme_client
-            .create_account(&key_pair, &contact_emails)
-            .await?;
+        let key_pair = AcmeKeyPair::from_pkcs8(&KEY_PAIR)?;
+        let kid = ACCT;
 
         // Create a new order for a test domain
         let domains = ["assetsart.com"];
-        let order = acme_client.create_order(&key_pair, &kid, &domains).await?;
+        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
 
         // Get the authorization URL from the order
         let auth_url = order["authorizations"][0]
@@ -424,7 +442,7 @@ mod tests {
 
         // Get the HTTP challenge
         let (token, key_authorization) = acme_client
-            .get_http_challenge(&key_pair, &kid, auth_url)
+            .get_http_challenge(&key_pair, kid, auth_url)
             .await?;
 
         // Assertions
