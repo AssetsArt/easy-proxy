@@ -18,7 +18,6 @@ pub struct Tls {
     pub redirect: Option<bool>,
     #[serde(rename = "type")]
     pub tls_type: String,
-    pub provider: Option<String>,
     pub acme: Option<Acme>,
     pub key: Option<String>,
     pub cert: Option<String>,
@@ -139,7 +138,6 @@ pub async fn load() -> Result<(), Errors> {
             store::set(conf);
         }
         Err(e) => {
-            tracing::error!("{:?}", e);
             return Err(e);
         }
     }

@@ -148,10 +148,16 @@ WantedBy=multi-user.target
 EOL
         sudo systemctl daemon-reload
         sudo systemctl enable --now easy-proxy
+        echo "Installation and setup completed successfully!"
     else
         echo "Service file already exists. Restarting service..."
-        sudo systemctl restart easy-proxy
+        # sudo systemctl restart easy-proxy
+        # check config file $INSTALL_DIR/$BINARY -t
+        if $INSTALL_DIR/$BINARY -t; then
+            sudo systemctl restart easy-proxy
+            echo "Installation and setup completed successfully!"
+        else
+            echo "easy-proxy configuration is invalid. Please check the configuration file."
+        fi
     fi
 fi
-
-echo "Installation and setup completed successfully!"

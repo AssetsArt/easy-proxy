@@ -82,7 +82,6 @@ fn main() {
             }
             Err(e) => {
                 tracing::error!("Error: {:?}", e);
-                std::process::exit(1);
             }
         }
         // println!("{:#?}", config::store::get());
