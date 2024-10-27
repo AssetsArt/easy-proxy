@@ -24,6 +24,7 @@ static mut GLOBAL_TLS_CONFIG: *mut HashMap<String, TlsGlobalConfig> = std::ptr::
 // tls acme request queue
 //  - key: tls name
 //  - value: vec of domains and email
+#[allow(dead_code)]
 static mut ACME_REQUEST_QUEUE: *mut HashMap<String, Vec<(String, String)>> = std::ptr::null_mut();
 
 pub struct TlsGlobalConfig {

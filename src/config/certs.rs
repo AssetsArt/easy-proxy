@@ -9,6 +9,7 @@ use openssl::x509::X509;
 use serde::{Deserialize, Serialize};
 
 // static
+#[allow(dead_code)]
 static ACME_STORE: &str = "/etc/easy-proxy/tls/acme.json";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -132,7 +133,7 @@ pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
         };
         return Ok(Some(tls_config));
     } else if matches!(tls_type, TlsType::Acme) {
-        let Some(acme) = tls.acme.clone() else {
+        let Some(_) = tls.acme.clone() else {
             return Err(Errors::ConfigError(
                 "Acme tls requires an acme config".to_string(),
             ));
