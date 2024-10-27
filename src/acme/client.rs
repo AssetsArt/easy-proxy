@@ -9,8 +9,8 @@ use openssl::{
 use serde_json::{json, Value};
 
 pub struct AcmeClient {
-    http_client: AcmeHttpClient,
-    directory: Value,
+    pub http_client: AcmeHttpClient,
+    pub directory: Value,
 }
 
 impl AcmeClient {
@@ -51,12 +51,26 @@ impl AcmeClient {
 
         let signed_request = sign_request(key_pair, new_account_url, &nonce, Some(payload), None)
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+        // println!("Signed request: {:?}", signed_request);
+        // todo!("Implement account creation");
         let response = self
             .http_client
             .post(new_account_url, &signed_request)
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
 
+        let status = response.status();
+        if !status.is_success() {
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error body".to_string());
+            return Err(Errors::AcmeClientError(format!(
+                "Account creation failed: HTTP {} - {}",
+                status, error_body
+            )));
+        }
         // Extract 'kid' from response headers for future requests
         let kid = response
             .headers()
@@ -292,5 +306,156 @@ impl AcmeClient {
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
         Ok(cert_pem)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::Errors;
+    use tokio;
+
+    static KEY_PAIR: [u8; 138] = [
+        48, 129, 135, 2, 1, 0, 48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206,
+        61, 3, 1, 7, 4, 109, 48, 107, 2, 1, 1, 4, 32, 148, 180, 145, 8, 195, 48, 26, 69, 80, 82,
+        63, 80, 195, 205, 89, 235, 2, 209, 112, 106, 172, 100, 158, 31, 177, 81, 33, 198, 28, 11,
+        194, 176, 161, 68, 3, 66, 0, 4, 218, 200, 108, 131, 28, 40, 213, 79, 219, 3, 35, 64, 101,
+        218, 201, 246, 123, 238, 162, 48, 136, 72, 191, 172, 215, 78, 248, 42, 112, 72, 255, 116,
+        8, 167, 48, 129, 180, 44, 72, 7, 29, 26, 252, 81, 193, 138, 102, 27, 228, 249, 236, 45,
+        153, 73, 102, 68, 78, 148, 57, 48, 110, 41, 227, 148,
+    ];
+    static ACCT: &str = "https://acme-staging-v02.api.letsencrypt.org/acme/acct/165578023";
+
+    #[tokio::test]
+    async fn test_new_acme_client() -> Result<(), Errors> {
+        // Instantiate AcmeClient
+        let directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory";
+        let acme_client = AcmeClient::new(directory_url).await?;
+
+        // Assertions
+        assert_eq!(
+            acme_client.get_endpoint("newNonce"),
+            Some("https://acme-staging-v02.api.letsencrypt.org/acme/new-nonce")
+        );
+        assert_eq!(
+            acme_client.get_endpoint("newAccount"),
+            Some("https://acme-staging-v02.api.letsencrypt.org/acme/new-acct")
+        );
+        assert_eq!(
+            acme_client.get_endpoint("newOrder"),
+            Some("https://acme-staging-v02.api.letsencrypt.org/acme/new-order")
+        );
+
+        Ok(())
+    }
+
+    /*
+    #[tokio::test]
+    async fn test_create_account() -> Result<(), Errors> {
+        // Instantiate AcmeClient
+        let directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory";
+        let acme_client = AcmeClient::new(directory_url).await?;
+
+        // Generate a key pair for testing
+        let key_pair = AcmeKeyPair::generate()?;
+
+        // Create account with a test email
+        let contact_emails = ["trust@assetsart.com"];
+        let kid = acme_client
+            .create_account(&key_pair, &contact_emails)
+            .await?;
+
+        // Assertions
+        assert!(!kid.is_empty(), "Account Key ID (kid) should not be empty");
+
+        Ok(())
+    }
+    */
+
+    #[tokio::test]
+    async fn test_create_order() -> Result<(), Errors> {
+        // Instantiate AcmeClient
+        let directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory";
+        let acme_client = AcmeClient::new(directory_url).await?;
+
+        // Generate a key pair for testing
+        // let key_pair = AcmeKeyPair::generate()?;
+        // println!("Key Pair: {:#?}", key_pair.pkcs8_bytes);
+        let key_pair = AcmeKeyPair::from_pkcs8(&KEY_PAIR)?;
+        // Create account with a test email
+        // let contact_emails = ["trust@assetsart.com"];
+        // let kid = acme_client
+        //     .create_account(&key_pair, &contact_emails)
+        //     .await?;
+        // println!("Kid: {:?}", kid);
+        let kid = ACCT;
+
+        // Create a new order for a test domain
+        let domains = ["assetsart.com"];
+        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
+
+        // Assertions
+        assert!(
+            order.get("status").is_some(),
+            "Order response should contain 'status'"
+        );
+        assert!(
+            order.get("authorizations").is_some(),
+            "Order response should contain 'authorizations'"
+        );
+        assert!(
+            order.get("finalize").is_some(),
+            "Order response should contain 'finalize'"
+        );
+
+        // Print the order for debugging
+        println!("Order Response: {:#?}", order);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_http_challenge() -> Result<(), Errors> {
+        // Instantiate AcmeClient
+        let directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory";
+        let acme_client = AcmeClient::new(directory_url).await?;
+
+        // // Generate a key pair for testing
+        // let key_pair = AcmeKeyPair::generate()?;
+        // // Create account with a test email
+        // let contact_emails = ["trust@assetsart.com"];
+        // let kid = acme_client
+        //     .create_account(&key_pair, &contact_emails)
+        //     .await?;
+
+        let key_pair = AcmeKeyPair::from_pkcs8(&KEY_PAIR)?;
+        let kid = ACCT;
+
+        // Create a new order for a test domain
+        let domains = ["assetsart.com"];
+        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
+
+        // Get the authorization URL from the order
+        let auth_url = order["authorizations"][0]
+            .as_str()
+            .ok_or(Errors::AcmeClientError("No authorization URL".to_string()))?;
+
+        // Get the HTTP challenge
+        let (token, key_authorization) = acme_client
+            .get_http_challenge(&key_pair, kid, auth_url)
+            .await?;
+
+        // Assertions
+        assert!(!token.is_empty(), "Token should not be empty");
+        assert!(
+            !key_authorization.is_empty(),
+            "Key authorization should not be empty"
+        );
+
+        // Print the challenge details for debugging
+        println!("Token: {}", token);
+        println!("Key Authorization: {}", key_authorization);
+
+        Ok(())
     }
 }

@@ -102,7 +102,6 @@ services:
 tls:
   - name: my-tls
     type: custom # acme, custom
-    # provider: letsencrypt # letsencrypt // required if type is acme
     # acme: # required if type is acme
     #   email: admin@domain.com
     key: /etc/easy-proxy/ssl/localhost.key

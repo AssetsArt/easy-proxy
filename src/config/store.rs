@@ -1,30 +1,50 @@
-use super::proxy::{Header, Path, ProxyConfig, ServiceReference, TlsRoute};
+use super::{
+    backend::load_backend,
+    certs::load_cert,
+    proxy::{Header, Path, ProxyConfig, ServiceReference, TlsRoute},
+};
 use crate::errors::Errors;
-use http::Extensions;
 use openssl::x509::X509;
 use pingora::{
     lb::{
-        discovery,
         selection::{
             algorithms::{Random, RoundRobin},
             consistent::KetamaHashing,
             weighted::Weighted,
         },
-        Backend, Backends, LoadBalancer,
+        LoadBalancer,
     },
-    prelude::HttpPeer,
-    protocols::l4::socket::SocketAddr,
     tls::pkey::PKey,
 };
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 static mut GLOBAL_PROXY_CONFIG: *mut ProxyStore = std::ptr::null_mut();
 static mut GLOBAL_TLS_CONFIG: *mut HashMap<String, TlsGlobalConfig> = std::ptr::null_mut();
+// tls acme request queue
+//  - key: tls name
+//  - value: vec of domains and email
+static mut ACME_REQUEST_QUEUE: *mut HashMap<String, Vec<(String, String)>> = std::ptr::null_mut();
+
 pub struct TlsGlobalConfig {
     pub cert: X509,
     pub key: PKey<openssl::pkey::Private>,
     pub chain: Option<X509>,
+}
+
+pub enum TlsType {
+    Custom,
+    Acme,
+}
+
+impl TlsType {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "custom" => Some(TlsType::Custom),
+            "acme" => Some(TlsType::Acme),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -80,91 +100,6 @@ pub struct ProxyStore {
     pub header_routes: HashMap<String, matchit::Router<Route>>,
 }
 
-async fn load_backend_type(
-    svc: &crate::config::proxy::Service,
-    endpoints: &Vec<crate::config::proxy::Endpoint>,
-) -> Result<BackendType, Errors> {
-    let mut backends: BTreeSet<Backend> = BTreeSet::new();
-    for e in endpoints {
-        let endpoint = format!("{}:{}", e.ip, e.port);
-        let addr: SocketAddr = match endpoint.parse() {
-            Ok(val) => val,
-            Err(e) => {
-                return Err(Errors::ConfigError(format!(
-                    "Unable to parse address: {}",
-                    e
-                )));
-            }
-        };
-        let mut backend = Backend {
-            addr,
-            weight: e.weight.unwrap_or(1) as usize,
-            ext: Extensions::new(),
-        };
-        if backend
-            .ext
-            .insert::<HttpPeer>(HttpPeer::new(endpoint, false, String::new()))
-            .is_some()
-        {
-            return Err(Errors::ConfigError("Unable to insert HttpPeer".to_string()));
-        }
-        backends.insert(backend);
-    }
-    let disco = discovery::Static::new(backends);
-    // Initialize the appropriate iterator based on the algorithm
-    let backend_type = match svc.algorithm.as_str() {
-        "round_robin" => {
-            let upstreams =
-                LoadBalancer::<Weighted<RoundRobin>>::from_backends(Backends::new(disco));
-            match upstreams.update().await {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Errors::PingoraError(format!("{}", e)));
-                }
-            }
-            BackendType::RoundRobin(Arc::new(upstreams))
-        }
-        "weighted" => {
-            let backend =
-                LoadBalancer::<Weighted<fnv::FnvHasher>>::from_backends(Backends::new(disco));
-            match backend.update().await {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Errors::PingoraError(format!("{}", e)));
-                }
-            }
-            BackendType::Weighted(Arc::new(backend))
-        }
-        "consistent" => {
-            let backend = LoadBalancer::<KetamaHashing>::from_backends(Backends::new(disco));
-            match backend.update().await {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Errors::PingoraError(format!("{}", e)));
-                }
-            }
-            BackendType::Consistent(Arc::new(backend))
-        }
-        "random" => {
-            let upstreams = LoadBalancer::<Weighted<Random>>::from_backends(Backends::new(disco));
-            match upstreams.update().await {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Errors::PingoraError(format!("{}", e)));
-                }
-            }
-            BackendType::Random(Arc::new(upstreams))
-        }
-        _ => {
-            return Err(Errors::ConfigError(format!(
-                "Unknown algorithm: {}",
-                svc.algorithm
-            )));
-        }
-    };
-    Ok(backend_type)
-}
-
 pub async fn load(
     configs: Vec<ProxyConfig>,
 ) -> Result<(ProxyStore, HashMap<String, TlsGlobalConfig>), Errors> {
@@ -183,7 +118,7 @@ pub async fn load(
             for svc in services {
                 let service = HttpService {
                     name: svc.name.clone(),
-                    backend_type: load_backend_type(svc, &svc.endpoints).await?,
+                    backend_type: load_backend(svc, &svc.endpoints).await?,
                 };
                 store.http_services.insert(service.name.clone(), service);
             }
@@ -199,7 +134,6 @@ pub async fn load(
         }
         if let Some(routes) = &config.routes {
             for route in routes {
-                // tls
                 if route.route.condition_type == *"host" {
                     if let Some(r_tls) = &route.tls {
                         if let Some(tls) =
@@ -215,90 +149,17 @@ pub async fn load(
                                         ));
                                     }
                                 };
-                                // load tls from file
-                                if tls.tls_type == *"custom" {
-                                    let Some(cert) = tls.cert.clone() else {
-                                        return Err(Errors::ConfigError(
-                                            "Custom tls requires a cert file".to_string(),
-                                        ));
-                                    };
-                                    let Some(key) = tls.key.clone() else {
-                                        return Err(Errors::ConfigError(
-                                            "Custom tls requires a key file".to_string(),
-                                        ));
-                                    };
-                                    let cert = match std::fs::read(&cert) {
-                                        Ok(val) => val,
-                                        Err(e) => {
-                                            return Err(Errors::ConfigError(format!(
-                                                "Unable to read cert file: {}",
-                                                e
-                                            )));
-                                        }
-                                    };
-                                    let key = match std::fs::read(&key) {
-                                        Ok(val) => val,
-                                        Err(e) => {
-                                            return Err(Errors::ConfigError(format!(
-                                                "Unable to read key file: {}",
-                                                e
-                                            )));
-                                        }
-                                    };
-                                    let chain = match tls.chain.clone() {
-                                        Some(chain) => {
-                                            let chain = match std::fs::read(&chain) {
-                                                Ok(val) => val,
-                                                Err(e) => {
-                                                    return Err(Errors::ConfigError(format!(
-                                                        "Unable to read chain file: {}",
-                                                        e
-                                                    )));
-                                                }
-                                            };
-                                            Some(chain)
-                                        }
-                                        None => None,
-                                    };
-                                    let x059cert = match X509::from_pem(&cert) {
-                                        Ok(val) => val,
-                                        Err(e) => {
-                                            return Err(Errors::ConfigError(format!(
-                                                "Unable to parse cert file: {}",
-                                                e
-                                            )));
-                                        }
-                                    };
-                                    let tls_config = TlsGlobalConfig {
-                                        cert: x059cert,
-                                        key: match PKey::private_key_from_pem(&key) {
-                                            Ok(val) => val,
-                                            Err(e) => {
-                                                return Err(Errors::ConfigError(format!(
-                                                    "Unable to parse key file: {}",
-                                                    e
-                                                )));
-                                            }
-                                        },
-                                        chain: match chain {
-                                            Some(chain) => {
-                                                let x059chain = match X509::from_pem(&chain) {
-                                                    Ok(val) => val,
-                                                    Err(e) => {
-                                                        return Err(Errors::ConfigError(format!(
-                                                            "Unable to parse chain file: {}",
-                                                            e
-                                                        )));
-                                                    }
-                                                };
-                                                Some(x059chain)
-                                            }
-                                            None => None,
-                                        },
-                                    };
-                                    tls_configs.insert(host.to_string(), tls_config);
-                                }
+                                let Some(cert) = load_cert(tls)? else {
+                                    tracing::warn!("No cert found for host: {}", host);
+                                    continue;
+                                };
+                                tls_configs.insert(host.to_string(), cert);
                             }
+                        } else {
+                            return Err(Errors::ConfigError(format!(
+                                "No tls found for route: {:?}",
+                                route
+                            )));
                         }
                     }
                 }
@@ -322,7 +183,11 @@ pub async fn load(
                         }
                     }
                     if path_type == *"Prefix" {
-                        match routes.insert(format!("{}/{{path}}", path.path.clone()), r) {
+                        let mut match_path = format!("{}/{{path}}", path.path.clone());
+                        if path.path.clone() == "/" {
+                            match_path = "/{{path}}".to_string();
+                        }
+                        match routes.insert(match_path, r) {
                             Ok(_) => {}
                             Err(e) => {
                                 return Err(Errors::ConfigError(format!(
