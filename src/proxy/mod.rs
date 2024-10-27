@@ -9,7 +9,7 @@ use http::Version;
 use openssl::ssl::{NameType, SslRef};
 use pingora::{
     lb::Backend,
-    listeners::TlsSettings,
+    listeners::tls::TlsSettings,
     prelude::{HttpPeer, Opt},
     proxy::{self, ProxyHttp, Session},
     server::{configuration::ServerConf, Server},
