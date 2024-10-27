@@ -184,9 +184,9 @@ pub async fn load(
                         }
                     }
                     if path_type == *"Prefix" {
-                        let mut match_path = format!("{}/{{path}}", path.path.clone());
-                        if path.path.clone() == "/" {
-                            match_path = "/{{path}}".to_string();
+                        let mut match_path = format!("{}/{{*p}}", path.path.clone());
+                        if path.path.clone() == *"/" {
+                            match_path = "/{{*p}}".to_string();
                         }
                         match routes.insert(match_path, r) {
                             Ok(_) => {}
