@@ -83,6 +83,7 @@ proxy:
   http: "0.0.0.0:80"
   https: "0.0.0.0:443"
 config_dir: "/etc/easy-proxy/proxy"
+acme_store: "/etc/easy-proxy/acme.json"
 pingora:
   daemon: true
   threads: $(nproc)
