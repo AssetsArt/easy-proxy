@@ -21,12 +21,30 @@ pub struct Tls {
     pub acme: Option<Acme>,
     pub key: Option<String>,
     pub cert: Option<String>,
-    pub chain: Option<String>,
+    pub chain: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Acme {
     pub email: String,
+    pub provider: Option<AcmeProvider>, // default: letsencrypt
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub enum AcmeProvider {
+    #[serde(rename = "letsencrypt")]
+    LetsEncrypt,
+    #[serde(rename = "buypass")]
+    Buypass,
+}
+
+impl std::fmt::Display for AcmeProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            AcmeProvider::LetsEncrypt => write!(f, "letsencrypt"),
+            AcmeProvider::Buypass => write!(f, "buypass"),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -94,25 +112,47 @@ pub struct ServiceReference {
     pub rewrite: Option<String>,
 }
 
+pub fn read_dir_recursive(dir: &String, max_depth: usize) -> Result<Vec<PathBuf>, Errors> {
+    let mut files = Vec::new();
+    let path_buf = PathBuf::from(dir);
+    for entry in std::fs::read_dir(path_buf).map_err(|e| {
+        Errors::ConfigError(format!("Unable to read config directory {:?}: {}", dir, e))
+    })? {
+        let entry = entry.map_err(|e| {
+            Errors::ConfigError(format!(
+                "Unable to read file in config directory {:?}: {}",
+                dir, e
+            ))
+        })?;
+        let path = entry.path();
+        if path.is_dir() {
+            if max_depth > 0 {
+                files.append(&mut read_dir_recursive(
+                    &path.to_string_lossy().to_string(),
+                    max_depth - 1,
+                )?);
+            }
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(files)
+}
+
 pub async fn read() -> Result<Vec<ProxyConfig>, Errors> {
     let conf = runtime::config();
     let confid_dir = conf.config_dir.clone();
     let proxy_conf_path = PathBuf::from(confid_dir);
-    let files = std::fs::read_dir(&proxy_conf_path).map_err(|e| {
-        Errors::ConfigError(format!(
-            "Unable to read config directory {:?}: {}",
-            proxy_conf_path, e
-        ))
-    })?;
-    let mut configs: Vec<ProxyConfig> = Vec::new();
-    for file in files {
-        let file = file.map_err(|e| {
+    let files =
+        read_dir_recursive(&proxy_conf_path.to_string_lossy().to_string(), 6).map_err(|e| {
             Errors::ConfigError(format!(
-                "Unable to read file in config directory {:?}: {}",
+                "Unable to read config directory {:?}: {}",
                 proxy_conf_path, e
             ))
         })?;
-        let file_path = file.path();
+    let mut configs: Vec<ProxyConfig> = Vec::new();
+    // println!("Reading config files: {:?}", files);
+    for file_path in files {
         let file = File::open(&file_path).map_err(|e| {
             Errors::ConfigError(format!(
                 "Unable to open config file {:?}: {}",

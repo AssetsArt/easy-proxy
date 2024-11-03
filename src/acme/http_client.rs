@@ -19,6 +19,7 @@ impl AcmeHttpClient {
         let resp = self
             .client
             .get(&self.directory_url)
+            .header("User-Agent", "easy-proxy/acme-client")
             .send()
             .await
             .map_err(|e| Errors::AcmeHttpClientError(format!("Failed to get directory: {}", e)))?;
@@ -31,6 +32,7 @@ impl AcmeHttpClient {
         let resp = self
             .client
             .head(new_nonce_url)
+            .header("User-Agent", "easy-proxy/acme-client")
             .send()
             .await
             .map_err(|e| Errors::AcmeHttpClientError(format!("Failed to get nonce: {}", e)))?;
@@ -54,6 +56,7 @@ impl AcmeHttpClient {
             .client
             .post(url)
             .header("Content-Type", "application/jose+json")
+            .header("User-Agent", "easy-proxy/acme-client")
             .body(signed_request.to_string())
             .send()
             .await

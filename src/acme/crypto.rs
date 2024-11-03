@@ -14,11 +14,11 @@ impl AcmeKeyPair {
     pub fn generate() -> Result<Self, Errors> {
         let rng = SystemRandom::new();
         let pkcs8_bytes = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &rng)
-            .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
+            .map_err(|e| Errors::AcmeKeyPairError(e.to_string()))?;
         let rng = SystemRandom::new();
         let key_pair =
             EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8_bytes.as_ref(), &rng)
-                .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
+                .map_err(|e| Errors::AcmeKeyPairError(e.to_string()))?;
         Ok(AcmeKeyPair {
             key_pair,
             pkcs8_bytes: pkcs8_bytes.as_ref().to_vec(),
@@ -28,7 +28,7 @@ impl AcmeKeyPair {
     pub fn from_pkcs8(data: &[u8]) -> Result<Self, Errors> {
         let rng = SystemRandom::new();
         let key_pair = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, data, &rng)
-            .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
+            .map_err(|e| Errors::AcmeKeyPairError(e.to_string()))?;
         Ok(AcmeKeyPair {
             key_pair,
             pkcs8_bytes: data.to_vec(),
@@ -59,8 +59,8 @@ impl AcmeKeyPair {
         let jwk = self.public_jwk();
 
         // Remove whitespace and sort the keys
-        let jwk_string = serde_json::to_string(&jwk)
-            .map_err(|e| Errors::AcmeKeyPairKeyUnspecified(e.to_string()))?;
+        let jwk_string =
+            serde_json::to_string(&jwk).map_err(|e| Errors::AcmeKeyPairError(e.to_string()))?;
 
         // Compute the SHA256 digest
         let digest = ring::digest::digest(&ring::digest::SHA256, jwk_string.as_bytes());
@@ -72,13 +72,13 @@ impl AcmeKeyPair {
         let signature_der = self
             .key_pair
             .sign(&rng, data)
-            .map_err(|e| Errors::AcmeKeyPairKeyRejected(e.to_string()))?;
+            .map_err(|e| Errors::AcmeKeyPairError(e.to_string()))?;
 
         let der = signature_der.as_ref();
 
         // Check that the signature starts with 0x30 (SEQUENCE)
         if der.len() < 8 || der[0] != 0x30 {
-            return Err(Errors::AcmeKeyPairKeyRejected(
+            return Err(Errors::AcmeKeyPairError(
                 "Invalid DER signature format".to_string(),
             ));
         }
@@ -86,7 +86,7 @@ impl AcmeKeyPair {
         // Read the total length
         let total_len = der[1] as usize;
         if total_len + 2 != der.len() {
-            return Err(Errors::AcmeKeyPairKeyRejected(
+            return Err(Errors::AcmeKeyPairError(
                 "Invalid DER signature length".to_string(),
             ));
         }
@@ -95,7 +95,7 @@ impl AcmeKeyPair {
 
         // Parse 'r'
         if der[index] != 0x02 {
-            return Err(Errors::AcmeKeyPairKeyRejected(
+            return Err(Errors::AcmeKeyPairError(
                 "Expected INTEGER tag for 'r'".to_string(),
             ));
         }
@@ -107,7 +107,7 @@ impl AcmeKeyPair {
 
         // Parse 's'
         if der[index] != 0x02 {
-            return Err(Errors::AcmeKeyPairKeyRejected(
+            return Err(Errors::AcmeKeyPairError(
                 "Expected INTEGER tag for 's'".to_string(),
             ));
         }
@@ -135,9 +135,7 @@ impl AcmeKeyPair {
 
     fn pad_scalar(scalar: &[u8], size: usize) -> Result<Vec<u8>, Errors> {
         if scalar.len() > size {
-            return Err(Errors::AcmeKeyPairKeyRejected(
-                "Scalar too large".to_string(),
-            ));
+            return Err(Errors::AcmeKeyPairError("Scalar too large".to_string()));
         }
 
         let mut padded = vec![0u8; size - scalar.len()];
@@ -215,9 +213,9 @@ mod tests {
         use ring::signature::{UnparsedPublicKey, ECDSA_P256_SHA256_FIXED};
         let public_key = key_pair.key_pair.public_key().as_ref();
         let unparsed_pub_key = UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, public_key);
-        unparsed_pub_key.verify(data, &signature).map_err(|_| {
-            Errors::AcmeKeyPairKeyRejected("Signature verification failed".to_string())
-        })?;
+        unparsed_pub_key
+            .verify(data, &signature)
+            .map_err(|_| Errors::AcmeKeyPairError("Signature verification failed".to_string()))?;
 
         Ok(())
     }

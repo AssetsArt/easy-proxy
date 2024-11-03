@@ -21,7 +21,7 @@ Easy Proxy supports the following features:
   - [x] HTTPS
 - Certificate Management
   - [x] Custom
-  - [ ] ACME (WIP)
+  - [x] ACME
 - Service Endpoint
   - [x] HTTP
   - [ ] HTTPS
@@ -56,6 +56,8 @@ proxy:
   http: "0.0.0.0:80"
   https: "0.0.0.0:443"
 config_dir: "/etc/easy-proxy/proxy"
+# optional
+acme_store: "/etc/easy-proxy/acme.json" # auto generated
 pingora:
   # https://github.com/cloudflare/pingora/blob/main/docs/user_guide/daemon.md
   daemon: true
@@ -103,10 +105,12 @@ tls:
   - name: my-tls
     type: custom # acme, custom
     # acme: # required if type is acme
+    #   provider: letsencrypt # letsencrypt or buypass // optional default letsencrypt
     #   email: admin@domain.com
     key: /etc/easy-proxy/ssl/localhost.key
     cert: /etc/easy-proxy/ssl/localhost.crt
-    # chain: .config/ssl/localhost.chain.crt # optional
+    # chain: # optional
+    #   - /etc/easy-proxy/ssl/chain.pem
 
 # Routes to be proxied
 routes:

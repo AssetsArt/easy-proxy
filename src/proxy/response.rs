@@ -1,19 +1,21 @@
+use bytes::Bytes;
 use pingora::{http::ResponseHeader, protocols::http::HttpTask, proxy::Session};
+use serde_json::Value;
+use tracing::error;
 
 pub struct Response {
     pub headers: ResponseHeader,
-    pub body: bytes::Bytes,
+    pub body: Bytes,
 }
 
 impl Response {
-    pub fn new() -> Response {
-        Response {
+    pub fn new() -> Self {
+        Self {
             headers: ResponseHeader::build(200, None).expect("Unable to build header"),
-            body: bytes::Bytes::new(),
+            body: Bytes::new(),
         }
     }
 
-    // redirect to https
     pub fn redirect_https(
         &mut self,
         host: String,
@@ -21,15 +23,9 @@ impl Response {
         port: Option<String>,
     ) -> &mut Self {
         self.status(301);
-        let port = match port {
-            Some(p) => format!(":{}", p),
-            None => "".to_string(),
-        };
-        // println!("Redirecting to https://{}{}{}", host, port, path);
-        self.header(
-            "Location".to_string(),
-            format!("https://{}{}{}", host, port, path),
-        );
+        let port_str = port.unwrap_or_default();
+        let location = format!("https://{}{}{}", host, port_str, path);
+        self.header("Location", &location);
         self
     }
 
@@ -38,28 +34,26 @@ impl Response {
         self
     }
 
-    pub fn header(&mut self, key: String, value: String) -> &mut Self {
-        match self.headers.append_header(key, value) {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error adding header: {:?}", e);
-            }
+    pub fn header(&mut self, key: &str, value: &str) -> &mut Self {
+        if let Err(e) = self
+            .headers
+            .append_header(key.to_string(), value.to_string())
+        {
+            error!("Error adding header: {:?}", e);
         }
         self
     }
 
-    pub fn body(&mut self, body: bytes::Bytes) -> &mut Self {
+    pub fn body(&mut self, body: Bytes) -> &mut Self {
         self.body = body;
-        // add content-length header
-        self.header("Content-Length".to_string(), self.body.len().to_string());
+        self.header("Content-Length", &self.body.len().to_string());
         self
     }
 
-    pub fn body_json(&mut self, body: serde_json::Value) -> &mut Self {
-        self.body(bytes::Bytes::from(
-            serde_json::to_vec(&body).expect("Unable to serialize body"),
-        ));
-        self.header("Content-Type".to_string(), "application/json".to_string());
+    pub fn body_json(&mut self, body: Value) -> &mut Self {
+        let body_bytes = serde_json::to_vec(&body).expect("Unable to serialize body");
+        self.body(Bytes::from(body_bytes));
+        self.header("Content-Type", "application/json");
         self
     }
 
@@ -69,14 +63,11 @@ impl Response {
             HttpTask::Body(Some(self.body.clone()), false),
             HttpTask::Done,
         ];
-        match session.response_duplex_vec(tasks).await {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error sending response: {:?}", e);
-                session
-                    .respond_error(500)
-                    .await
-                    .expect("Unable to respond with error");
+
+        if let Err(e) = session.response_duplex_vec(tasks).await {
+            error!("Error sending response: {:?}", e);
+            if let Err(err) = session.respond_error(500).await {
+                error!("Unable to respond with error: {:?}", err);
             }
         }
         true

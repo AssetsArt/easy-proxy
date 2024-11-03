@@ -1,6 +1,6 @@
 [package]
 name = "easy-proxy"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 [dependencies]
@@ -27,6 +27,8 @@ sha2 = "0.10"
 rcgen = "0.13"
 openssl = { version = "0.10", features = ["vendored"] }
 clap = { version="4.5", features = ["derive"] }
+hmac = "0.12" 
+chrono = "0.4"
 
 [profile.release]
 overflow-checks = true

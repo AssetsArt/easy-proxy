@@ -5,96 +5,69 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-pub mod acme;
+mod acme;
 mod commands;
 mod config;
-pub mod errors;
+mod errors;
 mod proxy;
+mod utils;
 
 use clap::Parser;
+use commands::Commands;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about)]
 struct Args {
-    /// Tries to check your configuration quite thoroughly.
-    #[arg(short = 't', long, default_value_t = false)]
+    /// Tries to check your configuration thoroughly.
+    #[arg(short, long, default_value_t = false)]
     test: bool,
-    // Reload the configuration
-    #[arg(short = 'r', long = "reload", default_value_t = false)]
+
+    /// Reload the configuration.
+    #[arg(short, long, default_value_t = false)]
     reload: bool,
 }
 
 fn main() {
-    // initialize the logger
+    // Initialize the logger.
     tracing_subscriber::fmt::init();
 
-    // parse the command line arguments
+    // Parse command-line arguments.
     let args = Args::parse();
+
     if args.test {
-        commands::Commands::send_command("test");
+        Commands::send_command("test");
         std::process::exit(0);
     }
+
     if args.reload {
-        commands::Commands::send_command("reload");
+        Commands::send_command("reload");
         std::process::exit(0);
     }
 
-    match config::runtime::initialize() {
-        Ok(_) => {
-            tracing::info!("Configuration initialized successfully");
-        }
-        Err(e) => {
-            tracing::error!("Error: {:?}", e);
-            std::process::exit(1);
-        }
+    // Initialize configuration.
+    if let Err(e) = config::runtime::initialize() {
+        tracing::error!("Error initializing configuration: {:?}", e);
+        std::process::exit(1);
     }
+    tracing::info!("Configuration initialized successfully");
 
-    let conf = config::runtime::config();
-    let http = &conf.proxy.http;
-    let https = &conf.proxy.https;
-
-    // check if the proxy is running
-    match std::net::TcpListener::bind(http) {
-        Ok(_) => {}
-        Err(e) => {
-            tracing::error!("An error occurred while trying to bind to {}: {}", http, e);
-            std::process::exit(1);
-        }
-    };
-    match https {
-        Some(https) => match std::net::TcpListener::bind(https) {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("An error occurred while trying to bind to {}: {}", https, e);
-                std::process::exit(1);
-            }
-        },
-        None => {}
-    }
-
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| tracing::error!("Error: {:?}", e))
-        .unwrap();
+    // Load proxy configuration.
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async {
-        match config::proxy::load().await {
-            Ok(_) => {
-                tracing::info!("Proxy configuration loaded successfully");
-            }
-            Err(e) => {
-                tracing::error!("Error: {:?}", e);
-            }
+        if let Err(e) = config::proxy::load().await {
+            tracing::error!("Error loading proxy configuration: {:?}", e);
+            std::process::exit(1);
         }
-        // println!("{:#?}", config::store::get());
+        tracing::info!("Proxy configuration loaded successfully");
     });
 
-    // start the commands listener
+    // Start the commands listener in a separate thread.
     std::thread::spawn(|| {
-        commands::Commands::run();
+        Commands::run();
     });
 
-    // create a new proxy
+    // Start the proxy server.
     proxy::EasyProxy::new_proxy()
-        .map_err(|e| tracing::error!("Error: {:?}", e))
-        .unwrap()
+        .expect("Failed to create proxy server")
         .run_forever();
 }
