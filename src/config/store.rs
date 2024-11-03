@@ -586,10 +586,9 @@ pub async fn acme_request(tls_name: &str, acme: &Acme, domains: &[String]) -> Re
         .map_err(|_| Errors::AcmeClientError("Unable to parse cert".to_string()))?;
     let expiry = utils::asn1_time_to_unix_time(cert.not_after())
         .map_err(|e| Errors::AcmeClientError(format!("Unable to parse cert expiry: {}", e)))?;
-    acme_store.acme_expires.insert(
-        order_id.to_string(),
-        (tls_name.to_string(), expiry),
-    );
+    acme_store
+        .acme_expires
+        .insert(order_id.to_string(), (tls_name.to_string(), expiry));
     let chain = cert_pems[1..]
         .iter()
         .map(|c| {

@@ -153,7 +153,7 @@ pub fn load_cert(
         let expiry = expiry - 432000;
         let now = chrono::Utc::now().timestamp() as i128;
         // 5 days before expiration
-        if expiry  < now {
+        if expiry < now {
             tracing::info!("Renewing cert for {}", host);
             let add = acme_requests.get_mut(&tls.name);
             if let Some(add) = add {

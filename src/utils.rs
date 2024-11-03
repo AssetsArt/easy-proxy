@@ -4,9 +4,7 @@ use openssl::{
 };
 use std::time::{Duration, SystemTime};
 
-pub fn asn1_time_to_unix_time(
-    time: &Asn1TimeRef,
-) -> Result<i128, ErrorStack> {
+pub fn asn1_time_to_unix_time(time: &Asn1TimeRef) -> Result<i128, ErrorStack> {
     let threshold = Asn1Time::days_from_now(0).unwrap();
     let time = threshold.diff(time)?;
     let days = time.days; // Difference in days

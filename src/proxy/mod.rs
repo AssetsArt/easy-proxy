@@ -370,7 +370,7 @@ impl ProxyHttp for EasyProxy {
                 None => false,
             };
             // println!("TLS: {}", is_tls);
-            if tls.redirect.unwrap_or(false) && is_tls {
+            if tls.redirect.unwrap_or(false) && !is_tls {
                 // println!("Redirecting to https");
                 if tls_port != "443" {
                     res.redirect_https(host, path, Some(tls_port.to_string()));
