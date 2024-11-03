@@ -1,40 +1,17 @@
-use std::collections::HashMap;
-
-use super::store::TlsType;
+use super::store::{AcmeStore, TlsType};
 use super::{proxy::Tls, store::TlsGlobalConfig};
 use crate::errors::Errors;
+use crate::utils;
 use openssl::pkey::PKey;
 use openssl::x509::X509;
-// use reqwest::Certificate;
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
-// static
-#[allow(dead_code)]
-static ACME_STORE: &str = "/etc/easy-proxy/tls/acme.json";
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AcmeStore {
-    // domain -> certificate
-    pub hostnames: HashMap<String, AcmeCertificate>,
-    // kid -> account
-    pub account: HashMap<String, AcmeAccount>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AcmeCertificate {
-    pub account_kid: String,
-    pub key: Vec<u8>,
-    pub cert: Vec<u8>,
-    pub chain: Option<Vec<u8>>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AcmeAccount {
-    pub kid: String,
-    pub key_pair: Vec<u8>,
-}
-
-pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
+pub fn load_cert(
+    acme_store: &AcmeStore,
+    tls: &Tls,
+    host: &str,
+    acme_requests: &mut HashMap<String, Vec<String>>,
+) -> Result<Option<TlsGlobalConfig>, Errors> {
     let tls_type = match TlsType::from_str(&tls.tls_type) {
         Some(val) => val,
         None => {
@@ -80,21 +57,22 @@ pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
                 )));
             }
         };
-        let chain = match tls.chain.clone() {
-            Some(chain) => {
-                let chain = match std::fs::read(&chain) {
-                    Ok(val) => val,
-                    Err(e) => {
-                        return Err(Errors::ConfigError(format!(
-                            "Unable to read chain file: {}",
-                            e
-                        )));
-                    }
-                };
-                Some(chain)
-            }
-            None => None,
+        let chain: Vec<Vec<u8>> = match tls.chain.clone() {
+            Some(chain) => chain
+                .iter()
+                .map(|c| {
+                    // println!("chain file: {}", c);
+                    std::fs::read(c)
+                })
+                .collect::<Result<Vec<Vec<u8>>, std::io::Error>>()
+                .map_err(|e| Errors::ConfigError(format!("Unable to read chain file: {}", e)))?,
+            None => vec![],
         };
+        let chain = chain
+            .iter()
+            .map(|c| X509::from_pem(c))
+            .collect::<Result<Vec<X509>, openssl::error::ErrorStack>>()
+            .map_err(|e| Errors::ConfigError(format!("Unable to parse chain file: {}", e)))?;
         let x059cert = match X509::from_pem(&cert) {
             Ok(val) => val,
             Err(e) => {
@@ -115,21 +93,7 @@ pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
                     )));
                 }
             },
-            chain: match chain {
-                Some(chain) => {
-                    let x059chain = match X509::from_pem(&chain) {
-                        Ok(val) => val,
-                        Err(e) => {
-                            return Err(Errors::ConfigError(format!(
-                                "Unable to parse chain file: {}",
-                                e
-                            )));
-                        }
-                    };
-                    Some(x059chain)
-                }
-                None => None,
-            },
+            chain,
         };
         return Ok(Some(tls_config));
     } else if matches!(tls_type, TlsType::Acme) {
@@ -138,33 +102,67 @@ pub fn load_cert(tls: &Tls) -> Result<Option<TlsGlobalConfig>, Errors> {
                 "Acme tls requires an acme config".to_string(),
             ));
         };
-        // make sure the acme path exists
-        // if !std::path::Path::new(ACME_PATH).exists() {
-        //     // create the acme path
-        //     match std::fs::create_dir_all(ACME_PATH) {
-        //         Ok(_) => {}
-        //         Err(e) => {
-        //             return Err(Errors::ConfigError(format!(
-        //                 "Unable to create acme path: {}",
-        //                 e
-        //             )));
-        //         }
-        //     }
-        // }
+        let order_id = acme_store.hostnames.get(host);
+        let Some(order_id) = order_id else {
+            let add = acme_requests.get_mut(&tls.name);
+            if let Some(add) = add {
+                add.push(host.to_string());
+            } else {
+                acme_requests.insert(tls.name.clone(), vec![host.to_string()]);
+            }
+            return Ok(None);
+        };
+        let cert_data = acme_store.acme_certs.get(order_id);
+        let Some(cert_data) = cert_data else {
+            let add = acme_requests.get_mut(&tls.name);
+            if let Some(add) = add {
+                add.push(host.to_string());
+            } else {
+                acme_requests.insert(tls.name.clone(), vec![host.to_string()]);
+            }
+            return Ok(None);
+        };
+        let cert = match X509::from_pem(&cert_data.cert) {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(Errors::ConfigError(format!(
+                    "Unable to parse cert file: {}",
+                    e
+                )));
+            }
+        };
+        let key = match PKey::private_key_from_der(&cert_data.key_der) {
+            Ok(val) => val,
+            Err(e) => {
+                return Err(Errors::ConfigError(format!(
+                    "Unable to parse key file: {}",
+                    e
+                )));
+            }
+        };
+        let chain = cert_data
+            .chain
+            .iter()
+            .map(|c| X509::from_pem(c))
+            .collect::<Result<Vec<X509>, openssl::error::ErrorStack>>()
+            .map_err(|e| Errors::ConfigError(format!("Unable to parse chain file: {}", e)))?;
 
-        // // check if the cert and key files exist
-        // let cert = match std::fs::read(format!("{}/{}.crt", ACME_PATH, tls.name)) {
-        //     Ok(val) => val,
-        //     Err(e) => {
-        //         return Ok(None);
-        //     }
-        // };
-        // let key = match std::fs::read(format!("{}/{}.key", ACME_PATH, tls.name)) {
-        //     Ok(val) => val,
-        //     Err(e) => {
-        //         return Ok(None);
-        //     }
-        // };
+        // renew the cert
+        let expiry = utils::asn1_time_to_unix_time(cert.not_after())
+            .map_err(|e| Errors::AcmeClientError(format!("Unable to parse cert expiry: {}", e)))?;
+        let expiry = expiry - 432000;
+        let now = chrono::Utc::now().timestamp() as i128;
+        // 5 days before expiration
+        if expiry  < now {
+            tracing::info!("Renewing cert for {}", host);
+            let add = acme_requests.get_mut(&tls.name);
+            if let Some(add) = add {
+                add.push(host.to_string());
+            } else {
+                acme_requests.insert(tls.name.clone(), vec![host.to_string()]);
+            }
+        }
+        return Ok(Some(TlsGlobalConfig { cert, key, chain }));
     }
 
     Ok(None)

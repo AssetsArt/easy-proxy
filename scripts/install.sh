@@ -74,6 +74,7 @@ fi
 
 # Create configuration directory and default config
 sudo mkdir -p "$CONFIG_DIR/proxy"
+sudo mkdir -p "$CONFIG_DIR/tls"
 CONFIG_FILE="$CONFIG_DIR/conf.yaml"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Creating default configuration..."

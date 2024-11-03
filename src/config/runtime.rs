@@ -8,6 +8,7 @@ pub struct RuntimeConfig {
     pub proxy: Proxy,
     pub pingora: Pingora,
     pub config_dir: String,
+    pub acme_store: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

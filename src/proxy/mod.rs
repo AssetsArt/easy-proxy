@@ -1,25 +1,66 @@
 mod backend;
+mod constant;
+mod context;
+mod dynamic_certificate;
 mod request_modifiers;
 mod response;
-use std::collections::HashMap;
 
-use crate::{config, errors::Errors};
+use crate::{
+    config::{self, store},
+    errors::Errors,
+};
 use async_trait::async_trait;
+use constant::WELL_KNOWN_PAHT_PREFIX;
+use context::Context;
+use dynamic_certificate::DynamicCertificate;
 use http::Version;
-use openssl::ssl::{NameType, SslRef};
 use pingora::{
-    lb::Backend,
     listeners::tls::TlsSettings,
-    prelude::{HttpPeer, Opt},
+    prelude::{background_service, HttpPeer, Opt},
     proxy::{self, ProxyHttp, Session},
-    server::{configuration::ServerConf, Server},
-    tls::ext,
+    server::{configuration::ServerConf, Server, ShutdownWatch},
+    services::background::BackgroundService,
     ErrorType,
 };
 use serde_json::json;
+use std::time::Duration;
+use tokio::time::interval;
 
-// static
-static WELL_KNOWN_PAHT_PREFIX: &str = "/.well-known/acme-challenge/";
+pub struct ProxyBackgroundService;
+#[async_trait]
+impl BackgroundService for ProxyBackgroundService {
+    async fn start(&self, mut shutdown: ShutdownWatch) {
+        let mut period_10s = interval(Duration::from_secs(10));
+        let mut period_1d = interval(Duration::from_secs(86400));
+        let mut period_1d_is_first_run = true;
+        loop {
+            tokio::select! {
+                _ = shutdown.changed() => {
+                    // shutdown
+                    tracing::info!("Shutting down background service");
+                    break;
+                }
+                _ = period_10s.tick() => {
+                    // acme request queue
+                    store::acme_request_queue().await;
+                }
+                _ = period_1d.tick() => {
+                    if period_1d_is_first_run {
+                        period_1d_is_first_run = false;
+                        continue;
+                    }
+                    // acme renew
+                    match store::acme_renew().await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::error!("ACME renew error: {}", e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct EasyProxy {}
@@ -81,10 +122,17 @@ impl EasyProxy {
             .or(Some(1));
         // println!("{:#?}", conf);
         pingora_server.configuration = conf.into();
+
+        // proxy service
         let mut pingora_svc =
             proxy::http_proxy_service(&pingora_server.configuration, easy_proxy.clone());
         pingora_svc.add_tcp(&app_conf.proxy.http);
         pingora_server.add_service(pingora_svc);
+
+        // background service
+        let background_service = background_service("proxy", ProxyBackgroundService {});
+        pingora_server.add_service(background_service);
+
         tracing::info!("Proxy server started on http://{}", app_conf.proxy.http);
         if let Some(https) = &app_conf.proxy.https {
             let mut pingora_svc =
@@ -102,7 +150,7 @@ impl EasyProxy {
         }
 
         // let mut prometheus_service_http = services::listening::Service::prometheus_http_service();
-        // prometheus_service_http.add_tcp("127.0.0.1:6192");
+        // prometheus_service_http.add_tcp("0.0.0.0:6192");
         // pingora_server.add_service(prometheus_service_http);
 
         pingora_server.bootstrap();
@@ -110,73 +158,11 @@ impl EasyProxy {
     }
 }
 
-pub struct DynamicCertificate {}
-
-impl DynamicCertificate {
-    pub fn new() -> Self {
-        DynamicCertificate {}
-    }
-}
-
-#[async_trait]
-impl pingora::listeners::TlsAccept for DynamicCertificate {
-    async fn certificate_callback(&self, ssl: &mut SslRef) {
-        // println!("certificate_callback {:?}", ssl);
-        let server_name = ssl.servername(NameType::HOST_NAME);
-        let server_name = match server_name {
-            Some(s) => s,
-            None => {
-                tracing::error!("Unable to get server name {:?}", ssl);
-                return;
-            }
-        };
-        let tls = match config::store::get_tls() {
-            Some(tls) => tls,
-            None => {
-                tracing::error!("TLS configuration not found");
-                return;
-            }
-        };
-        let cert = match tls.get(server_name) {
-            Some(c) => c,
-            None => {
-                tracing::error!("Certificate not found for {}", server_name);
-                return;
-            }
-        };
-        // println!("Certificate found for {:?}", cert.cert);
-        // println!("Certificate found for {:?}", cert.key);
-        // set tls certificate
-        if let Err(e) = ext::ssl_use_certificate(ssl, &cert.cert) {
-            tracing::error!("ssl use certificate fail: {}", e);
-        }
-        // set private key
-        if let Err(e) = ext::ssl_use_private_key(ssl, &cert.key) {
-            tracing::error!("ssl use private key fail: {}", e);
-        }
-        // set chain certificate
-        if let Some(chain) = &cert.chain {
-            if let Err(e) = ext::ssl_add_chain_cert(ssl, chain) {
-                tracing::error!("ssl add chain cert fail: {}", e);
-            }
-        }
-    }
-}
-
-pub struct Context {
-    pub backend: Backend,
-    pub variables: HashMap<String, String>,
-}
-
 #[async_trait]
 impl ProxyHttp for EasyProxy {
     type CTX = Context;
     fn new_ctx(&self) -> Self::CTX {
-        Context {
-            // Set the default backend
-            backend: Backend::new("127.0.0.1:80").expect("Unable to create backend"),
-            variables: HashMap::new(),
-        }
+        Context::new()
     }
 
     async fn request_filter(
@@ -234,16 +220,23 @@ impl ProxyHttp for EasyProxy {
                 None => host,
             };
         }
-        // println!("path: {}", path);
-        // println!("host: {}", host);
 
         // check if the path is a well-known path
         if !host.is_empty() && path.starts_with(WELL_KNOWN_PAHT_PREFIX) {
-            res.status(503).body_json(json!({
-                "error": "ACME_ERROR",
-                "message": "ACME challenge not supported",
-            }));
-            return Ok(res.send(session).await);
+            let acme_challenge = store::acme_get_authz(&host);
+            match acme_challenge {
+                Some(acme_challenge) => {
+                    res.status(200).body(acme_challenge.into());
+                    return Ok(res.send(session).await);
+                }
+                None => {
+                    res.status(503).body_json(json!({
+                        "error": "ACME_ERROR",
+                        "message": "ACME challenge not supported",
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            }
         }
 
         // get the store configuration
@@ -337,7 +330,7 @@ impl ProxyHttp for EasyProxy {
 
         ctx.variables.insert("CLIENT_IP".to_string(), ip.clone());
         // x-real-ip
-        let ip = match session.get_header("x-real-ip") {
+        let selection_ip = match session.get_header("x-real-ip") {
             Some(h) => match h.to_str() {
                 Ok(h) => format!("{}-{}", ip, h),
                 Err(e) => {
@@ -350,10 +343,23 @@ impl ProxyHttp for EasyProxy {
             },
             None => ip,
         };
-
+        // x-forwarded-for
+        let selection_ip = match session.get_header("x-forwarded-for") {
+            Some(h) => match h.to_str() {
+                Ok(h) => format!("{}-{}", selection_ip, h),
+                Err(e) => {
+                    res.status(400).body_json(json!({
+                        "error": "PARSE_ERROR",
+                        "message": e.to_string(),
+                    }));
+                    return Ok(res.send(session).await);
+                }
+            },
+            None => selection_ip,
+        };
         // prepare the selection key
         let service_ref = &matched.value.service;
-        let selection_key = format!("{}:{}", ip, path);
+        let selection_key = format!("{}:{}", selection_ip, path);
 
         // modify the request
         let route = matched.value;
@@ -384,7 +390,12 @@ impl ProxyHttp for EasyProxy {
                 return Ok(res.send(session).await);
             }
         }
-        request_modifiers::headers(session, ctx, &route.add_headers, &route.remove_headers);
+        request_modifiers::headers(
+            session,
+            ctx,
+            route.add_headers.as_ref().unwrap_or(&vec![]),
+            route.remove_headers.as_ref().unwrap_or(&vec![]),
+        );
 
         // select the backend for http service
         let service = match store_conf.http_services.get(&service_ref.name) {
@@ -428,4 +439,25 @@ impl ProxyHttp for EasyProxy {
         };
         Ok(Box::new(peer))
     }
+
+    // async fn logging(
+    //     &self,
+    //     session: &mut Session,
+    //     _e: Option<&pingora::Error>,
+    //     ctx: &mut Self::CTX,
+    // ) {
+    //     // println!("latency: {:?}", ctx.latency.elapsed().as_micros());
+    //     let response_code = session
+    //         .response_written()
+    //         .map_or(0, |resp| resp.status.as_u16());
+    //     let latency = ctx.latency.elapsed().as_secs_f64();
+    //     metrics::REQUEST_LATENCY.observe(latency);
+    //     if (200..300).contains(&response_code) {
+    //         metrics::SUCCESS_COUNTER.inc();
+    //     } else if (400..500).contains(&response_code) {
+    //         metrics::CLIENT_ERROR_COUNTER.inc();
+    //     } else if (500..600).contains(&response_code) {
+    //         metrics::SERVER_ERROR_COUNTER.inc();
+    //     }
+    // }
 }

@@ -1,16 +1,20 @@
 use super::{crypto::AcmeKeyPair, http_client::AcmeHttpClient, jws::sign_request};
 use crate::errors::Errors;
-use base64::Engine;
+use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
+use hmac::{Hmac, Mac};
 use openssl::{
     pkey::PKey,
     rsa::Rsa,
     x509::{X509Extension, X509NameBuilder, X509Req},
 };
 use serde_json::{json, Value};
+use sha2::Sha256;
 
 pub struct AcmeClient {
     pub http_client: AcmeHttpClient,
     pub directory: Value,
+    pub external_account_key: Option<PKey<openssl::pkey::Private>>,
+    pub external_account_id: Option<String>,
 }
 
 impl AcmeClient {
@@ -23,11 +27,67 @@ impl AcmeClient {
         Ok(AcmeClient {
             http_client,
             directory,
+            external_account_key: None,
+            external_account_id: None,
         })
     }
 
     pub fn get_endpoint(&self, key: &str) -> Option<&str> {
         self.directory.get(key)?.as_str()
+    }
+
+    fn compute_external_account_binding(
+        &self,
+        new_account_url: &str,
+        nonce: &str,
+    ) -> Result<Value, Errors> {
+        // Ensure external account credentials are provided
+        let external_account_key = self
+            .external_account_key
+            .as_ref()
+            .ok_or("External account key is not set")
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+        let external_account_id = self
+            .external_account_id
+            .as_ref()
+            .ok_or("External account ID is not set")
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+        // Create the protected header
+        let protected_header = json!({
+            "alg": "HS256",
+            "url": new_account_url,
+            "kid": external_account_id,
+            "nonce": nonce,
+        });
+
+        // Serialize and base64url-encode the protected header
+        let protected_str = serde_json::to_string(&protected_header)
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+        let protected_b64 = BASE64_URL_SAFE_NO_PAD.encode(protected_str);
+
+        // Compute the MAC using HMAC with SHA-256
+        let mac = {
+            let key_bytes = external_account_key
+                .private_key_to_der()
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+            let mut mac_instance = Hmac::<Sha256>::new_from_slice(&key_bytes)
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+            mac_instance.update(protected_b64.as_bytes());
+            mac_instance.update(external_account_id.as_bytes());
+            let result = mac_instance.finalize();
+            let code_bytes = result.into_bytes();
+            BASE64_URL_SAFE_NO_PAD.encode(code_bytes)
+        };
+
+        // Construct the externalAccountBinding object
+        let external_account_binding = json!({
+            "protected": protected_b64,
+            "identifier": external_account_id,
+            "mac": mac,
+        });
+
+        Ok(external_account_binding)
     }
 
     pub async fn create_account(
@@ -44,10 +104,24 @@ impl AcmeClient {
             .get_nonce(self.get_endpoint("newNonce").unwrap())
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
-        let payload = json!({
+
+        let mut payload = json!({
             "termsOfServiceAgreed": true,
             "contact": contact_emails.iter().map(|email| format!("mailto:{}", email)).collect::<Vec<_>>(),
         });
+
+        let meta = self
+            .directory
+            .get("meta")
+            .ok_or("No meta in directory")
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+        let external_account_required = meta["externalAccountRequired"].as_bool().unwrap_or(false);
+        if external_account_required {
+            let external_account_binding =
+                self.compute_external_account_binding(new_account_url, &nonce)?;
+            payload["externalAccountBinding"] = external_account_binding;
+        }
 
         let signed_request = sign_request(key_pair, new_account_url, &nonce, Some(payload), None)
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
@@ -89,7 +163,7 @@ impl AcmeClient {
         key_pair: &AcmeKeyPair,
         kid: &str,
         domains: &[&str],
-    ) -> Result<Value, Errors> {
+    ) -> Result<(String, Value), Errors> {
         let new_order_url = self
             .get_endpoint("newOrder")
             .ok_or("No newOrder URL")
@@ -113,12 +187,22 @@ impl AcmeClient {
             .post(new_order_url, &signed_request)
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+        let order_url = response
+            .headers()
+            .get("Location")
+            .ok_or("No Location header in order response")
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?
+            .to_str()
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?
+            .to_string();
+
         let order = response
             .json::<Value>()
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
 
-        Ok(order)
+        Ok((order_url, order))
     }
 
     pub async fn get_http_challenge(
@@ -126,7 +210,7 @@ impl AcmeClient {
         key_pair: &AcmeKeyPair,
         kid: &str,
         authorization_url: &str,
-    ) -> Result<(String, String), Errors> {
+    ) -> Result<(String, String, String), Errors> {
         let nonce = self
             .http_client
             .get_nonce(self.get_endpoint("newNonce").unwrap())
@@ -161,13 +245,19 @@ impl AcmeClient {
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?
             .to_string();
 
+        let url = http_challenge["url"]
+            .as_str()
+            .ok_or("No URL in challenge")
+            .map_err(|e| Errors::AcmeClientError(e.to_string()))?
+            .to_string();
+
         // Compute key authorization
         let thumbprint = key_pair
             .thumbprint()
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
         let key_authorization = format!("{}.{}", token, thumbprint);
 
-        Ok((token, key_authorization))
+        Ok((url, token, key_authorization))
     }
 
     pub async fn validate_challenge(
@@ -176,24 +266,71 @@ impl AcmeClient {
         kid: &str,
         challenge_url: &str,
     ) -> Result<(), Errors> {
-        let nonce = self
-            .http_client
-            .get_nonce(self.get_endpoint("newNonce").unwrap())
-            .await
-            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
-        let payload = json!({});
-        let signed_request =
-            sign_request(key_pair, challenge_url, &nonce, Some(payload), Some(kid))
+        let mut attempts = 0;
+        let max_attempts = 5;
+        let delay = tokio::time::Duration::from_secs(3);
+        loop {
+            if attempts >= max_attempts {
+                return Err(Errors::AcmeClientError(
+                    "Max attempts reached for challenge validation".to_string(),
+                ));
+            }
+            attempts += 1;
+            let nonce = self
+                .http_client
+                .get_nonce(self.get_endpoint("newNonce").unwrap())
+                .await
                 .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
-        let _response = self
-            .http_client
-            .post(challenge_url, &signed_request)
-            .await
-            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+            let payload = json!({});
+            let signed_request =
+                sign_request(key_pair, challenge_url, &nonce, Some(payload), Some(kid))
+                    .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+            let response = self
+                .http_client
+                .post(challenge_url, &signed_request)
+                .await
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+            match response.status().as_u16() {
+                200..=299 => {
+                    // Challenge validation successful
+                    let challenge_status = response
+                        .json::<Value>()
+                        .await
+                        .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+                    // println!("Challenge Status: {:#?}", challenge_status);
+                    if challenge_status["status"] == "valid" {
+                        break;
+                    }
+                    // "pending" | "processing"
+                    else if ["pending", "processing"]
+                        .contains(&challenge_status["status"].as_str().unwrap())
+                    {
+                        tokio::time::sleep(delay).await;
+                    } else {
+                        return Err(Errors::AcmeClientError(format!(
+                            "Challenge validation failed: {}",
+                            challenge_status["status"]
+                        )));
+                    }
+                }
+                status => {
+                    let error_body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unable to read error body".to_string());
+                    return Err(Errors::AcmeClientError(format!(
+                        "Challenge validation failed: HTTP {} - {}",
+                        status, error_body
+                    )));
+                }
+            }
+        }
+
         Ok(())
     }
 
-    pub fn create_csr(&self, domains: &[&str]) -> Result<(String, Vec<u8>), Errors> {
+    pub fn create_csr(&self, domains: &[&str]) -> Result<(Vec<u8>, Vec<u8>), Errors> {
         // Generate a private key
         let rsa = Rsa::generate(2048).map_err(|e| Errors::AcmeClientError(e.to_string()))?;
         let pkey = PKey::from_rsa(rsa).map_err(|e| Errors::AcmeClientError(e.to_string()))?;
@@ -238,12 +375,10 @@ impl AcmeClient {
             .sign(&pkey, openssl::hash::MessageDigest::sha256())
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
 
-        // Get CSR in PEM format
-        let csr_pem = req_builder
+        // Get CSR in DER format
+        let csr_der = req_builder
             .build()
-            .to_pem()
-            .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
-        let csr_pem_str = String::from_utf8(csr_pem.clone())
+            .to_der()
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
 
         // Get private key in DER format
@@ -251,7 +386,71 @@ impl AcmeClient {
             .private_key_to_der()
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
 
-        Ok((csr_pem_str, private_key_der))
+        Ok((csr_der, private_key_der))
+    }
+
+    pub async fn wait_for_order_valid(
+        &self,
+        key_pair: &AcmeKeyPair,
+        kid: &str,
+        order_url: &str,
+    ) -> Result<Value, Errors> {
+        let mut attempts = 0;
+        let max_attempts = 5;
+        let delay = tokio::time::Duration::from_secs(3);
+        loop {
+            if attempts >= max_attempts {
+                return Err(Errors::AcmeClientError(
+                    "Max attempts reached for order validation".to_string(),
+                ));
+            }
+            attempts += 1;
+            let nonce = self
+                .http_client
+                .get_nonce(self.get_endpoint("newNonce").unwrap())
+                .await
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+            let signed_request = sign_request(key_pair, order_url, &nonce, None, Some(kid))
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+            let response = self
+                .http_client
+                .post(order_url, &signed_request)
+                .await
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+            let order = response
+                .json::<Value>()
+                .await
+                .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
+            let status = order["status"].as_str().ok_or(Errors::AcmeClientError(
+                "No status in order response".to_string(),
+            ))?;
+
+            match status {
+                "valid" => {
+                    return Ok(order);
+                }
+                "processing" | "pending" => {
+                    // Wait and poll again
+                    tokio::time::sleep(delay).await;
+                }
+                "invalid" => {
+                    return Err(Errors::AcmeClientError(format!(
+                        "Order became invalid: {:?}",
+                        order
+                    )));
+                }
+                _ => {
+                    return Err(Errors::AcmeClientError(format!(
+                        "Unexpected order status: {}",
+                        status
+                    )));
+                }
+            }
+        }
     }
 
     pub async fn finalize_order(
@@ -259,22 +458,28 @@ impl AcmeClient {
         key_pair: &AcmeKeyPair,
         kid: &str,
         finalize_url: &str,
-        csr_pem: &str,
+        csr_der: &[u8],
     ) -> Result<Value, Errors> {
         let nonce = self
             .http_client
             .get_nonce(self.get_endpoint("newNonce").unwrap())
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
-        let payload =
-            json!({ "csr": base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(csr_pem) });
+
+        // Base64url-encode the DER-encoded CSR without padding
+        let csr_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(csr_der);
+
+        let payload = json!({ "csr": csr_b64 });
+
         let signed_request = sign_request(key_pair, finalize_url, &nonce, Some(payload), Some(kid))
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
         let response = self
             .http_client
             .post(finalize_url, &signed_request)
             .await
             .map_err(|e| Errors::AcmeClientError(e.to_string()))?;
+
         let order = response
             .json::<Value>()
             .await
@@ -392,7 +597,7 @@ mod tests {
 
         // Create a new order for a test domain
         let domains = ["assetsart.com"];
-        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
+        let (_order_url, order) = acme_client.create_order(&key_pair, kid, &domains).await?;
 
         // Assertions
         assert!(
@@ -433,7 +638,7 @@ mod tests {
 
         // Create a new order for a test domain
         let domains = ["assetsart.com"];
-        let order = acme_client.create_order(&key_pair, kid, &domains).await?;
+        let (_order_url, order) = acme_client.create_order(&key_pair, kid, &domains).await?;
 
         // Get the authorization URL from the order
         let auth_url = order["authorizations"][0]
@@ -441,7 +646,7 @@ mod tests {
             .ok_or(Errors::AcmeClientError("No authorization URL".to_string()))?;
 
         // Get the HTTP challenge
-        let (token, key_authorization) = acme_client
+        let (_challenge_url, token, key_authorization) = acme_client
             .get_http_challenge(&key_pair, kid, auth_url)
             .await?;
 
