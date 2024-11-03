@@ -26,6 +26,7 @@ impl Response {
         let port_str = port.unwrap_or_default();
         let location = format!("https://{}{}{}", host, port_str, path);
         self.header("Location", &location);
+        self.header("Content-Length", "0");
         self
     }
 
