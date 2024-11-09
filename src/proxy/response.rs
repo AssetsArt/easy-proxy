@@ -1,19 +1,31 @@
+use crate::errors::Errors;
 use bytes::Bytes;
-use pingora::{http::ResponseHeader, protocols::http::HttpTask, proxy::Session};
+use pingora::{http::ResponseHeader, protocols::http::HttpTask, proxy::Session, ErrorType};
 use serde_json::Value;
 use tracing::error;
 
-pub struct Response {
+pub struct Response<'a> {
     pub headers: ResponseHeader,
     pub body: Bytes,
+    pub session: &'a mut Session,
 }
 
-impl Response {
-    pub fn new() -> Self {
-        Self {
-            headers: ResponseHeader::build(200, None).expect("Unable to build header"),
+impl<'a> Response<'a> {
+    pub async fn new(session: &'a mut Session) -> pingora::Result<Self> {
+        Ok(Self {
+            headers: match ResponseHeader::build(200, None) {
+                Ok(h) => h,
+                Err(e) => {
+                    return Err(pingora::Error::because(
+                        ErrorType::InternalError,
+                        "[Response]".to_string(),
+                        Errors::InternalServerError(e.to_string()),
+                    ));
+                }
+            },
             body: Bytes::new(),
-        }
+            session,
+        })
     }
 
     pub fn redirect_https(
@@ -31,7 +43,7 @@ impl Response {
     }
 
     pub fn status(&mut self, status: u16) -> &mut Self {
-        self.headers = ResponseHeader::build(status, None).expect("Unable to build header");
+        let _ = self.headers.set_status(status);
         self
     }
 
@@ -51,26 +63,36 @@ impl Response {
         self
     }
 
-    pub fn body_json(&mut self, body: Value) -> &mut Self {
-        let body_bytes = serde_json::to_vec(&body).expect("Unable to serialize body");
+    pub fn body_json(&mut self, body: Value) -> pingora::Result<&mut Self> {
+        let body_bytes = match serde_json::to_vec(&body) {
+            Ok(b) => b,
+            Err(e) => {
+                return Err(pingora::Error::because(
+                    ErrorType::InternalError,
+                    "[Response]".to_string(),
+                    Errors::InternalServerError(e.to_string()),
+                ));
+            }
+        };
         self.body(Bytes::from(body_bytes));
         self.header("Content-Type", "application/json");
-        self
+        Ok(self)
     }
 
-    pub async fn send(&self, session: &mut Session) -> bool {
+    pub async fn send(&mut self) -> pingora::Result<bool> {
         let tasks = vec![
             HttpTask::Header(Box::new(self.headers.clone()), false),
             HttpTask::Body(Some(self.body.clone()), false),
             HttpTask::Done,
         ];
-
-        if let Err(e) = session.response_duplex_vec(tasks).await {
+        if let Err(e) = self.session.response_duplex_vec(tasks).await {
             error!("Error sending response: {:?}", e);
-            if let Err(err) = session.respond_error(500).await {
-                error!("Unable to respond with error: {:?}", err);
-            }
+            return Err(pingora::Error::because(
+                ErrorType::InternalError,
+                "[Response]".to_string(),
+                Errors::InternalServerError(e.to_string()),
+            ));
         }
-        true
+        Ok(true)
     }
 }

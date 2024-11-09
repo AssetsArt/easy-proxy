@@ -15,12 +15,7 @@ use context::Context;
 use dynamic_certificate::DynamicCertificate;
 use http::Version;
 use pingora::{
-    listeners::tls::TlsSettings,
-    prelude::{background_service, HttpPeer, Opt},
-    proxy::{self, ProxyHttp, Session},
-    server::{configuration::ServerConf, Server, ShutdownWatch},
-    services::background::BackgroundService,
-    ErrorType,
+    http::ResponseHeader, listeners::tls::TlsSettings, prelude::{background_service, HttpPeer, Opt}, proxy::{self, ProxyHttp, Session}, server::{configuration::ServerConf, Server, ShutdownWatch}, services::background::BackgroundService, ErrorType
 };
 use serde_json::json;
 use std::time::Duration;
@@ -172,30 +167,34 @@ impl ProxyHttp for EasyProxy {
     ) -> pingora::Result<bool> {
         // println!("request_filter {:#?}", session.req_header());
         // create a new response
-        let mut res = response::Response::new();
+        let mut res = response::Response::new(session).await?;
+        
         // get the path
-        let mut path = session.req_header().uri.path().to_string();
+        let mut path = res.session.req_header().uri.path().to_string();
         let tls_port = match &config::runtime::config().proxy.https {
             Some(https) => https.split(':').last().unwrap_or("443"),
             None => "443",
         };
 
         // get the host
-        let mut host = match session.get_header("host") {
+        let mut host = match res.session.get_header("host") {
             Some(h) => match h.to_str() {
                 Ok(h) => h.to_string(),
                 Err(e) => {
-                    res.status(400).body_json(json!({
-                        "error": "PARSE_ERROR",
-                        "message": e.to_string(),
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(400)
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": e.to_string(),
+                        }))?
+                        .send()
+                        .await;
                 }
             },
             None => "".to_string(),
         };
-        if session.req_header().version == Version::HTTP_2 {
-            let sessionv2 = match session.as_http2() {
+        if res.session.req_header().version == Version::HTTP_2 {
+            let sessionv2 = match res.session.as_http2() {
                 Some(s) => s,
                 None => {
                     return Err(pingora::Error::because(
@@ -210,7 +209,8 @@ impl ProxyHttp for EasyProxy {
                 Some(h) => h.to_string(),
                 None => "".to_string(),
             };
-            let _ = session
+            let _ = res
+                .session
                 .req_header_mut()
                 .append_header("host", host.as_str())
                 .is_ok();
@@ -226,15 +226,17 @@ impl ProxyHttp for EasyProxy {
             let acme_challenge = store::acme_get_authz(&host);
             match acme_challenge {
                 Some(acme_challenge) => {
-                    res.status(200).body(acme_challenge.into());
-                    return Ok(res.send(session).await);
+                    return res.status(200).body(acme_challenge.into()).send().await;
                 }
                 None => {
-                    res.status(503).body_json(json!({
-                        "error": "ACME_ERROR",
-                        "message": "ACME challenge not supported",
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(503)
+                        .body_json(json!({
+                            "error": "ACME_ERROR",
+                            "message": "ACME challenge not supported",
+                        }))?
+                        .send()
+                        .await;
                 }
             }
         }
@@ -243,16 +245,20 @@ impl ProxyHttp for EasyProxy {
         let store_conf = match config::store::get() {
             Some(conf) => conf,
             None => {
-                res.status(500).body_json(json!({
-                    "error": "CONFIG_ERROR",
-                    "message": "Store configuration not found",
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(500)
+                    .body_json(json!({
+                        "error": "CONFIG_ERROR",
+                        "message": "Store configuration not found",
+                    }))?
+                    .send()
+                    .await;
             }
         };
 
         // get the `header_selector`
-        let header_selector = session
+        let header_selector = res
+            .session
             .req_header()
             .headers
             .get(store_conf.header_selector.as_str());
@@ -260,11 +266,14 @@ impl ProxyHttp for EasyProxy {
             Some(h) => match h.to_str() {
                 Ok(h) => h,
                 Err(e) => {
-                    res.status(400).body_json(json!({
-                        "error": "PARSE_ERROR",
-                        "message": e.to_string(),
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(400)
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": e.to_string(),
+                        }))?
+                        .send()
+                        .await;
                 }
             },
             None => "",
@@ -276,11 +285,14 @@ impl ProxyHttp for EasyProxy {
                 Some(r) => r,
                 None => {
                     // println!("No route found for header");
-                    res.status(404).body_json(json!({
-                        "error": "CONFIG_ERROR",
-                        "message": "No route found for header",
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(404)
+                        .body_json(json!({
+                            "error": "CONFIG_ERROR",
+                            "message": "No route found for header",
+                        }))?
+                        .send()
+                        .await;
                 }
             }
         } else {
@@ -288,11 +300,14 @@ impl ProxyHttp for EasyProxy {
                 Some(r) => r,
                 None => {
                     // println!("No route found for host");
-                    res.status(404).body_json(json!({
-                        "error": "CONFIG_ERROR",
-                        "message": "No route found for host",
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(404)
+                        .body_json(json!({
+                            "error": "CONFIG_ERROR",
+                            "message": "No route found for host",
+                        }))?
+                        .send()
+                        .await;
                 }
             }
         };
@@ -301,58 +316,73 @@ impl ProxyHttp for EasyProxy {
         let matched = match route.at(&path) {
             Ok(m) => m,
             Err(e) => {
-                res.status(404).body_json(json!({
-                    "error": "ROUTE_ERROR",
-                    "message": e.to_string(),
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(404)
+                    .body_json(json!({
+                        "error": "ROUTE_ERROR",
+                        "message": e.to_string(),
+                    }))?
+                    .send()
+                    .await;
             }
         };
-        let ip = match session.client_addr() {
+        let ip = match res.session.client_addr() {
             Some(ip) => match ip.as_inet() {
                 Some(ip) => ip.ip().to_string(),
                 None => {
-                    res.status(400).body_json(json!({
-                        "error": "PARSE_ERROR",
-                        "message": "Unable to parse client IP",
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(400)
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": "Unable to parse client IP",
+                        }))?
+                        .send()
+                        .await;
                 }
             },
             None => {
-                res.status(400).body_json(json!({
-                    "error": "CLIENT_ERROR",
-                    "message": "Unable to get client IP",
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(400)
+                    .body_json(json!({
+                        "error": "CLIENT_ERROR",
+                        "message": "Unable to get client IP",
+                    }))?
+                    .send()
+                    .await;
             }
         };
 
         ctx.variables.insert("CLIENT_IP".to_string(), ip.clone());
         // x-real-ip
-        let selection_ip = match session.get_header("x-real-ip") {
+        let selection_ip = match res.session.get_header("x-real-ip") {
             Some(h) => match h.to_str() {
                 Ok(h) => format!("{}-{}", ip, h),
                 Err(e) => {
-                    res.status(400).body_json(json!({
-                        "error": "PARSE_ERROR",
-                        "message": e.to_string(),
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(400)
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": e.to_string(),
+                        }))?
+                        .send()
+                        .await;
                 }
             },
             None => ip,
         };
         // x-forwarded-for
-        let selection_ip = match session.get_header("x-forwarded-for") {
+        let selection_ip = match res.session.get_header("x-forwarded-for") {
             Some(h) => match h.to_str() {
                 Ok(h) => format!("{}-{}", selection_ip, h),
                 Err(e) => {
-                    res.status(400).body_json(json!({
-                        "error": "PARSE_ERROR",
-                        "message": e.to_string(),
-                    }));
-                    return Ok(res.send(session).await);
+                    return res
+                        .status(400)
+                        .body_json(json!({
+                            "error": "PARSE_ERROR",
+                            "message": e.to_string(),
+                        }))?
+                        .send()
+                        .await;
                 }
             },
             None => selection_ip,
@@ -365,7 +395,7 @@ impl ProxyHttp for EasyProxy {
         let route = matched.value;
         if let Some(tls) = &route.tls {
             // println!("TLS: {:?}", session.digest().unwrap().ssl_digest.clone().unwrap());
-            let is_tls = match session.digest() {
+            let is_tls = match res.session.digest() {
                 Some(d) => d.ssl_digest.is_some(),
                 None => false,
             };
@@ -377,21 +407,25 @@ impl ProxyHttp for EasyProxy {
                 } else {
                     res.redirect_https(host, path, None);
                 }
-                return Ok(res.send(session).await);
+                return res.send().await;
             }
         }
-        match request_modifiers::rewrite(session, &route.path.path, &service_ref.rewrite).await {
+        match request_modifiers::rewrite(res.session, &route.path.path, &service_ref.rewrite).await
+        {
             Ok(_) => {}
             Err(e) => {
-                res.status(500).body_json(json!({
-                    "error": "MODIFY_ERROR",
-                    "message": e.to_string(),
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(500)
+                    .body_json(json!({
+                        "error": "MODIFY_ERROR",
+                        "message": e.to_string(),
+                    }))?
+                    .send()
+                    .await;
             }
         }
         request_modifiers::headers(
-            session,
+            res.session,
             ctx,
             route.add_headers.as_ref().unwrap_or(&vec![]),
             route.remove_headers.as_ref().unwrap_or(&vec![]),
@@ -401,21 +435,27 @@ impl ProxyHttp for EasyProxy {
         let service = match store_conf.http_services.get(&service_ref.name) {
             Some(s) => s,
             None => {
-                res.status(404).body_json(json!({
-                    "error": "CONFIG_ERROR",
-                    "message": "Service not found",
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(404)
+                    .body_json(json!({
+                        "error": "CONFIG_ERROR",
+                        "message": "Service not found",
+                    }))?
+                    .send()
+                    .await;
             }
         };
         ctx.backend = match backend::selection(&selection_key, service) {
             Ok(b) => b,
             Err(e) => {
-                res.status(500).body_json(json!({
-                    "error": "CONFIG_ERROR",
-                    "message": e.to_string(),
-                }));
-                return Ok(res.send(session).await);
+                return res
+                    .status(500)
+                    .body_json(json!({
+                        "error": "CONFIG_ERROR",
+                        "message": e.to_string(),
+                    }))?
+                    .send()
+                    .await;
             }
         };
         // return false to continue processing the request
@@ -439,6 +479,27 @@ impl ProxyHttp for EasyProxy {
         };
         Ok(Box::new(peer))
     }
+
+    async fn response_filter(
+        &self,
+        _session: &mut Session,
+        upstream_response: &mut ResponseHeader,
+        _ctx: &mut Self::CTX,
+    ) -> pingora::Result<()> {
+        // add headers
+        match upstream_response.append_header("x-server", "Easy Proxy") {
+            Ok(_) => {}
+            Err(e) => {
+                return Err(pingora::Error::because(
+                    ErrorType::InternalError,
+                    "[response_filter]",
+                    Errors::ConfigError(format!("Unable to add header: {}", e)),
+                ));
+            }
+        }
+        Ok(())
+    }
+
 
     // async fn logging(
     //     &self,

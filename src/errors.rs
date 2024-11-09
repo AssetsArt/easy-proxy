@@ -25,4 +25,7 @@ pub enum Errors {
 
     #[error("ACME client error: {0}")]
     AcmeClientError(String),
+
+    #[error("Server error: {0}")]
+    InternalServerError(String),
 }
