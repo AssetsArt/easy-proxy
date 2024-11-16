@@ -15,7 +15,13 @@ use context::Context;
 use dynamic_certificate::DynamicCertificate;
 use http::Version;
 use pingora::{
-    http::ResponseHeader, listeners::tls::TlsSettings, prelude::{background_service, HttpPeer, Opt}, proxy::{self, ProxyHttp, Session}, server::{configuration::ServerConf, Server, ShutdownWatch}, services::background::BackgroundService, ErrorType
+    http::ResponseHeader,
+    listeners::tls::TlsSettings,
+    prelude::{background_service, HttpPeer, Opt},
+    proxy::{self, ProxyHttp, Session},
+    server::{configuration::ServerConf, Server, ShutdownWatch},
+    services::background::BackgroundService,
+    ErrorType,
 };
 use serde_json::json;
 use std::time::Duration;
@@ -168,7 +174,7 @@ impl ProxyHttp for EasyProxy {
         // println!("request_filter {:#?}", session.req_header());
         // create a new response
         let mut res = response::Response::new(session).await?;
-        
+
         // get the path
         let mut path = res.session.req_header().uri.path().to_string();
         let tls_port = match &config::runtime::config().proxy.https {
@@ -499,7 +505,6 @@ impl ProxyHttp for EasyProxy {
         }
         Ok(())
     }
-
 
     // async fn logging(
     //     &self,
