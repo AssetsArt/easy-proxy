@@ -12,6 +12,7 @@ nylon-store = { path = "../nylon-store" }
 nylon-plugin = { path = "../nylon-plugin" }
 nylon-tls = { path = "../nylon-tls" }
 nylon-sdk = { path = "../../sdk/rust" }
+nylon-abi = { path = "../../abi/rust" }
 tracing-subscriber = { workspace = true }
 tracing = { workspace = true }
 pingora = { workspace = true }
@@ -25,3 +26,4 @@ flatbuffers = { workspace = true }
 dashmap = { workspace = true }
 mime_guess = { workspace = true }
 fastrand = { workspace = true }
+serde = { workspace = true }

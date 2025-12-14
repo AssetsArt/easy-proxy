@@ -7,7 +7,7 @@
 PORTS := 8088 8443 6192
 RUST_BACKTRACE := 1
 RUST_LOG := "info,warn,debug"
-DEV_CMD := cargo watch -w crates -w examples -w proto -w sdk -q -c -s "cargo run -- run --config ./examples/config.yaml"
+DEV_CMD := cargo watch -w crates -w examples -w sdk -q -c -s "cargo run -- run --config ./examples/config.yaml"
 
 # Default target
 .PHONY: default

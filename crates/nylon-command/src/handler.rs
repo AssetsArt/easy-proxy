@@ -225,7 +225,9 @@ fn install_service() -> Result<()> {
         working_directory: None,
         environment: None,
         autostart: true,
-        disable_restart_on_failure: false,
+        restart_policy: RestartPolicy::OnFailure {
+            delay_secs: Some(5),
+        },
     };
 
     manager.install(service)?;

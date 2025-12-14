@@ -6,6 +6,10 @@ members = [
 ]
 
 [workspace.dependencies]
+# internal
+nylon-ring-host = { path = "./../nylon-ring/crates/nylon-ring-host" }
+nylon-ring = { path = "./../nylon-ring/crates/nylon-ring" }
+# dependencies
 thiserror = "2.0"
 clap = { version = "4.5", features = ["derive"] }
 tracing-subscriber = "0.3"
@@ -23,7 +27,7 @@ openssl = { version = "0.10", features = ["vendored"] }
 tokio = { version = "1", features = ["rt"] }
 tokio-stream = "0.1"
 fnv = "1.0"
-matchit = "0.8"
+matchit = "0.9"
 bytes = "1.7"
 http = "1.3"
 regex = "1.11"
@@ -34,11 +38,11 @@ libloading = "0.8.9"
 instant-acme = "0.8"
 sha1 = "0.10"
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
-redis = { version = "0.32", features = ["aio", "tokio-comp"] }
+redis = { version = "1", features = ["aio", "tokio-comp"] }
 mime_guess = "2.0"
 rcgen = "0.14"
 fastrand = "2.1"
-service-manager = "0.8"
+service-manager = "0.9"
 
 [profile.release]
 overflow-checks = true

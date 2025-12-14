@@ -5,7 +5,6 @@
 
 mod backend;
 mod background_service;
-mod context;
 mod dynamic_certificate;
 mod proxy;
 mod response;
