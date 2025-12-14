@@ -3,39 +3,13 @@
 
 # host & path routing
 routes:
-  # App
   - route:
       type: host
-      value: localhost # localhost|api.localhost
+      value: localhost
     name: app-route
-    middleware:
-      - group: auth
     paths:
-      - path:
-          - /static
-          - /static/{*path}
-        service:
-          name: static
-          rewrite: /static
-      - path:
-          - /ws
-        methods: [GET, POST, OPTIONS]
-        service:
-          name: ws-service
-      - path:
-          - /myapp
-          - /myapp/{name}
-        service:
-          name: myapp-service
-      - path:
-          - /stream
-        methods: [GET, POST, OPTIONS]
-        service:
-          name: stream-service
       - path:
           - /
           - /{*path}
-        middleware:
-          - group: security
         service:
           name: app-service

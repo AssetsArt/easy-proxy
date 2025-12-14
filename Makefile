@@ -7,7 +7,7 @@
 PORTS := 8088 8443 6192
 RUST_BACKTRACE := 1
 RUST_LOG := "info,warn,debug"
-DEV_CMD := cargo watch -w crates -w examples -w proto -w sdk -q -c -s "make build-examples && cargo run -- run --config ./examples/config.yaml"
+DEV_CMD := cargo watch -w crates -w examples -w proto -w sdk -q -c -s "cargo run -- run --config ./examples/config.yaml"
 
 # Default target
 .PHONY: default
@@ -36,13 +36,6 @@ generate:
 	flatc --rust -o sdk/rust/src/fbs proto/plugin.fbs
 	flatc --go -o sdk/go/fbs proto/plugin.fbs
 	@echo "✅ FlatBuffers code generation completed"
-
-# Build Go examples
-.PHONY: build-examples
-build-examples:
-	@echo "🔨 Building Go examples..."
-	cd examples/go && go build -buildmode=c-shared -o ./../../target/examples/go/plugin_sdk.so
-	@echo "✅ Go examples built successfully"
 
 # Build release version
 .PHONY: build
@@ -100,7 +93,6 @@ help:
 	@echo "  dev          - Start development server with hot reload"
 	@echo "  dev-debug    - Start development server with debug logging"
 	@echo "  build        - Build release version"
-	@echo "  build-examples - Build Go plugin examples"
 	@echo "  generate     - Generate FlatBuffers code"
 	@echo "  test         - Run tests"
 	@echo "  fmt          - Check code formatting"
