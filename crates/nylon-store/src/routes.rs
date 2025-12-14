@@ -11,13 +11,16 @@ use nylon_types::{
 use once_cell::sync::Lazy;
 use pingora::proxy::Session;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
-use std::sync::Mutex;
+use std::{collections::HashMap, sync::Mutex};
 
 // LRU cache for route matching - cache up to 10,000 route lookups
 static ROUTE_CACHE: Lazy<Mutex<LruCache<String, (Route, HashMap<String, String>)>>> =
-    Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(10_000).unwrap())));
+    Lazy::new(|| {
+        Mutex::new(LruCache::new(
+            NonZeroUsize::new(10_000).expect("Unable to create route cache"),
+        ))
+    });
 
 fn parsed_middleware(
     middleware: Vec<MiddlewareItem>,
@@ -86,16 +89,6 @@ pub fn get_tls_route(host: &str) -> Result<Option<String>, NylonError> {
 pub fn clear_route_cache() {
     if let Ok(mut cache) = ROUTE_CACHE.lock() {
         cache.clear();
-        tracing::info!("Route cache cleared");
-    }
-}
-
-/// Get route cache statistics
-pub fn get_route_cache_stats() -> (usize, usize) {
-    if let Ok(cache) = ROUTE_CACHE.lock() {
-        (cache.len(), cache.cap().get())
-    } else {
-        (0, 0)
     }
 }
 
@@ -326,14 +319,14 @@ fn get_http1_request_info(session: &Session) -> Result<(String, String, String),
     let host = session
         .get_header("host")
         .and_then(|h| h.to_str().ok())
-        .unwrap_or_default()
-        .split(':')
-        .next()
-        .unwrap_or("")
-        .to_string();
+        .map(|s| match s.as_bytes().iter().position(|&b| b == b':') {
+            Some(i) => &s[..i],
+            None => s,
+        })
+        .unwrap_or("");
     let method = session.req_header().method.to_string();
 
-    Ok((path, host, method))
+    Ok((path, host.to_string(), method))
 }
 
 fn find_matching_route(
@@ -342,17 +335,21 @@ fn find_matching_route(
     path: &str,
     method: &str,
 ) -> Result<(Route, HashMap<String, String>), NylonError> {
-    // let now = std::time::Instant::now();
     // Create cache key from route_name, method, and path
     let cache_key = format!("{}:{}:{}", route_name, method, path);
 
     // Check cache first
-    if let Ok(mut cache) = ROUTE_CACHE.lock()
-        && let Some(cached) = cache.get(&cache_key)
-    {
-        // println!("Time taken to find matching route: {:?}", now.elapsed());
+    let cached = match ROUTE_CACHE.lock() {
+        Ok(mut cache) => cache.get(&cache_key).cloned(),
+        Err(e) => {
+            tracing::error!("Failed to access route cache: {e}");
+            None
+        }
+    };
+
+    if let Some(cached) = cached {
         tracing::debug!("Route cache hit: {}:{}:{}", route_name, method, path);
-        return Ok(cached.clone());
+        return Ok(cached);
     }
 
     // Cache miss - perform actual route matching
@@ -382,11 +379,14 @@ fn find_matching_route(
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
 
-    // println!("Time taken to find matching route: {:?}", now.elapsed());
-    // Store in cache
-    if let Ok(mut cache) = ROUTE_CACHE.lock() {
-        cache.put(cache_key, (route.clone(), params.clone()));
-    }
+    match ROUTE_CACHE.lock() {
+        Ok(mut cache) => {
+            cache.put(cache_key, (route.clone(), params.clone()));
+        }
+        Err(e) => {
+            tracing::error!("Failed to access route cache: {e}");
+        }
+    };
 
     Ok((route, params))
 }

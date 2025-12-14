@@ -1,3 +1,4 @@
+#![allow(unused_doc_comments)]
 pub mod lb_backends;
 pub mod redis_adapter;
 pub mod routes;
@@ -5,11 +6,9 @@ pub mod tls;
 pub mod websocket_adapter;
 pub mod websockets;
 
-use dashmap::DashMap;
 use once_cell::sync::Lazy;
-use std::any::Any;
+use std::{any::Any, collections::HashMap, sync::RwLock};
 
-// default values
 pub const DEFAULT_HEADER_SELECTOR: &str = "x-nylon-proxy";
 
 // constants
@@ -28,15 +27,22 @@ pub const KEY_ACME_CERTS: &str = "acme_certs";
 pub const KEY_ACME_CONFIG: &str = "acme_config";
 pub const KEY_ACME_METRICS: &str = "acme_metrics";
 
-// storage for global variables
-static GLOBAL_STORE: Lazy<DashMap<String, Box<dyn Any + Send + Sync>>> = Lazy::new(DashMap::new);
+type AnyBox = Box<dyn Any + Send + Sync>;
+type Store = HashMap<String, AnyBox>;
 
-pub fn insert<T: Any + Send + Sync + 'static>(key: &str, value: T) {
-    GLOBAL_STORE.insert(key.to_string(), Box::new(value));
+/// GLOBAL (process-wide source of truth)
+static GLOBAL_STORE: Lazy<RwLock<Store>> = Lazy::new(|| RwLock::new(HashMap::new()));
+
+/// insert
+pub fn insert<T: Any + Clone + Send + Sync + 'static>(key: &str, value: T) {
+    let mut g = GLOBAL_STORE.write().expect("GLOBAL_STORE poisoned");
+    g.insert(key.to_string(), Box::new(value.clone()));
 }
 
+/// get
 pub fn get<T: Any + Clone + Send + Sync + 'static>(key: &str) -> Option<T> {
-    let entry = GLOBAL_STORE.get(key)?;
-    let any_ref = entry.downcast_ref::<T>()?;
-    Some(any_ref.clone())
+    match GLOBAL_STORE.read().expect("GLOBAL_STORE poisoned").get(key) {
+        Some(value) => value.downcast_ref::<T>().cloned(),
+        None => None,
+    }
 }

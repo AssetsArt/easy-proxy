@@ -49,7 +49,7 @@ impl ProxyHttp for NylonRuntime {
             // return handle_acme_challenge(&mut res, session, &req_path).await;
         }
 
-        // Find matching route
+        // // Find matching route
         let (route, _params) = match nylon_store::routes::find_route(session) {
             Ok(route) => route,
             Err(e) => {
@@ -60,6 +60,13 @@ impl ProxyHttp for NylonRuntime {
                     .await;
             }
         };
+
+        // test response
+        // return response
+        //     .status(StatusCode::OK)
+        //     .body("test response")
+        //     .send(session)
+        //     .await;
 
         // Handle plugin service type
         if route.service.service_type == ServiceType::Plugin {
