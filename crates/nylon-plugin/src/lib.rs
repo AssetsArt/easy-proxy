@@ -5,7 +5,6 @@ pub mod constants;
 pub mod loaders;
 mod native;
 pub mod plugin_manager;
-pub mod stream;
 pub mod types;
 
 use crate::{

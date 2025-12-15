@@ -4,7 +4,7 @@ pub use nylon_ring::{
     NrBytes, NrHostExt, NrHostVTable, NrKV, NrStatus, NrStr, NrVec, define_plugin,
 };
 pub use nylon_ring_host::NylonRingHost;
-use std::ffi::c_void;
+pub use std::ffi::c_void;
 
 // pub crate
 pub use once_cell;
@@ -33,7 +33,7 @@ macro_rules! nylon_plugin {
         }
     ) => {$crate::paste::paste! {
         static NYLON_PLUGIN_HOST_CTX: std::sync::atomic::AtomicPtr<std::ffi::c_void> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
-        static NYLON_PLUGIN_HOST_VTABLE: std::sync::atomic::AtomicPtr<NrHostVTable> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+        static NYLON_PLUGIN_HOST_VTABLE: std::sync::atomic::AtomicPtr<$crate::NrHostVTable> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
         static NYLON_PLUGIN_TOKIO_RT: std::sync::OnceLock<$crate::tokio::runtime::Runtime> =
             std::sync::OnceLock::new();
 
@@ -56,9 +56,9 @@ macro_rules! nylon_plugin {
         }
 
         #[inline(always)]
-        pub fn __nylon_send_result(sid: u64, status: NrStatus, data: NrVec<u8>) {
+        pub fn __nylon_send_result(sid: u64, status: $crate::NrStatus, data: $crate::NrVec<u8>) {
             unsafe {
-                let vtable = NYLON_PLUGIN_HOST_VTABLE.load(std::sync::atomic::Ordering::Relaxed) as *const NrHostVTable;
+                let vtable = NYLON_PLUGIN_HOST_VTABLE.load(std::sync::atomic::Ordering::Relaxed) as *const $crate::NrHostVTable;
                 let ctx = NYLON_PLUGIN_HOST_CTX.load(std::sync::atomic::Ordering::Relaxed);
                 let f = (*vtable).send_result;
                 f(ctx, sid, status, data);
@@ -66,7 +66,7 @@ macro_rules! nylon_plugin {
         }
 
         #[inline(always)]
-        fn __nylon_plugin_init(host_ctx: *mut c_void, host_vtable: *const NrHostVTable) -> NrStatus {
+        fn __nylon_plugin_init(host_ctx: *mut $crate::c_void, host_vtable: *const $crate::NrHostVTable) -> $crate::NrStatus {
             NYLON_PLUGIN_HOST_CTX.store(host_ctx, std::sync::atomic::Ordering::SeqCst);
             NYLON_PLUGIN_HOST_VTABLE.store(host_vtable as *mut _, std::sync::atomic::Ordering::SeqCst);
 
@@ -82,7 +82,7 @@ macro_rules! nylon_plugin {
                 $init_fn().await;
             });
 
-            NrStatus::Ok
+            $crate::NrStatus::Ok
         }
 
         #[inline(always)]
@@ -94,25 +94,25 @@ macro_rules! nylon_plugin {
 
         thread_local! {
             $(
-            static [<NYLON_PLUGIN_ASYNC_QUEUE_ $plugin_name:upper>]: $crate::once_cell::sync::OnceCell<$crate::tokio::sync::mpsc::UnboundedSender<(u64, NrBytes)>> = const { $crate::once_cell::sync::OnceCell::new() };
+            static [<NYLON_PLUGIN_ASYNC_QUEUE_ $plugin_name:upper>]: $crate::once_cell::sync::OnceCell<$crate::tokio::sync::mpsc::UnboundedSender<(u64, $crate::NrBytes)>> = const { $crate::once_cell::sync::OnceCell::new() };
             )*
         }
 
         $(
         pub fn [<__nylon_async_worker_ $plugin_name:lower>]() {
-            let (tx, mut rx) = $crate::tokio::sync::mpsc::unbounded_channel::<(u64, NrBytes)>();
+            let (tx, mut rx) = $crate::tokio::sync::mpsc::unbounded_channel::<(u64, $crate::NrBytes)>();
             [<NYLON_PLUGIN_ASYNC_QUEUE_ $plugin_name:upper>].with(|cell| {
                 cell.set(tx).ok();
             });
 
             __nylon_get_runtime().spawn(async move {
                 while let Some((sid, payload)) = rx.recv().await {
-                    let nr_vec = NrVec::from_nr_bytes(payload);
+                    let nr_vec = $crate::NrVec::from_nr_bytes(payload);
 
                     let plugin: &dyn $crate::NylonPlugin = *[<NYLON_PLUGIN_HANDLE_ $plugin_name:upper>].get().expect("Plugin initialized");
                     plugin.request_filter().await;
 
-                    __nylon_send_result(sid, NrStatus::Ok, nr_vec);
+                    __nylon_send_result(sid, $crate::NrStatus::Ok, nr_vec);
                 }
             });
         }
@@ -126,14 +126,14 @@ macro_rules! nylon_plugin {
                 [<NYLON_PLUGIN_ASYNC_QUEUE_ $plugin_name:upper>].with(|cell| {
                     if let Some(tx) = cell.get() {
                         let _ = tx.send((sid, payload));
-                        return NrStatus::Ok;
+                        return $crate::NrStatus::Ok;
                     }
-                    NrStatus::Err
+                    $crate::NrStatus::Err
                 })
             }
         )*
 
-        define_plugin! {
+        $crate::define_plugin! {
             init: __nylon_plugin_init,
             shutdown: __nylon_plugin_shutdown,
             entries: {
@@ -141,31 +141,4 @@ macro_rules! nylon_plugin {
             }
         }
     }}
-}
-
-async fn pp_init() {
-    println!("pp_init");
-}
-
-async fn pp_shutdown() {
-    println!("pp_shutdown");
-}
-
-#[derive(Default)]
-pub struct TestPlugin;
-
-#[async_trait]
-impl NylonPlugin for TestPlugin {
-    async fn request_filter(&self) -> NylonPluginStatus {
-        NylonPluginStatus::Next
-    }
-}
-
-// test
-nylon_plugin! {
-    initialize: pp_init,
-    shutdown: pp_shutdown,
-    plugins: {
-        "test": TestPlugin,
-    }
 }
